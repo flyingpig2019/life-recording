@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user, fresh_login_required
 import sqlite3
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import pyotp
 import base64
 import os
@@ -10,6 +10,11 @@ from dotenv import load_dotenv
 # 加载环境变量（仅在本地开发时使用）
 if os.path.exists('.env'):
     load_dotenv()
+
+# 设置会话配置
+class Config:
+    PERMANENT_SESSION_LIFETIME = timedelta(days=7)  # 设置会话持续7天
+    REMEMBER_COOKIE_DURATION = timedelta(days=7)    # 设置记住我cookie持续7天
 
 def get_secret(key: str) -> str:
     """从环境变量或 /etc/secrets 获取密钥"""
@@ -28,6 +33,7 @@ def get_secret(key: str) -> str:
 
 app = Flask(__name__)
 app.secret_key = get_secret('FLASK_SECRET_KEY')
+app.config.from_object(Config)  # 应用会话配置
 
 # 初始化 Flask-Login
 login_manager = LoginManager()
@@ -68,7 +74,7 @@ def login():
         try:
             if totp.verify(code, valid_window=1):
                 user = User(email)
-                login_user(user)
+                login_user(user, remember=True)  # 启用"记住我"功能
                 return redirect(url_for('landing'))
             else:
                 return render_template('login.html', error='验证码不正确，请确保手机时间准确')
