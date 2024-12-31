@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>登录</title>
+    <style>
+        .container {
+            width: 400px;
+            margin: 100px auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .error {
+            color: #dc3545;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .setup-info {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .setup-info img {
+            margin: 15px 0;
+        }
+        .setup-info code {
+            display: inline-block;
+            padding: 5px 10px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+        h2 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>登录系统</h2>
+        {% if setup_key %}
+        <div class="setup-info">
+            <p>首次使用请用 Google Authenticator 扫描以下二维码：</p>
+            <img src="https://chart.googleapis.com/chart?cht=qr&chs=200x200&chl={{ qr_url|urlencode }}">
+            <p>或手动输入密钥：</p>
+            <code>{{ setup_key }}</code>
+        </div>
+        {% endif %}
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+        <form method="POST" action="{{ url_for('login') }}">
+            <div class="form-group">
+                <input type="email" name="email" placeholder="邮箱" required>
+            </div>
+            <div class="form-group">
+                <input type="text" name="code" placeholder="Google Authenticator 验证码" required>
+            </div>
+            <div class="form-group">
+                <button type="submit">登录</button>
+            </div>
+        </form>
+    </div>
+</body>
+</html> 

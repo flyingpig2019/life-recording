@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>编辑记录</title>
+    <style>
+        .container {
+            width: 400px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        input, button {
+            margin: 5px 0;
+            padding: 5px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>编辑记录</h2>
+        <form action="{{ url_for('edit', id=record[0]) }}" method="post">
+            <div class="form-group">
+                <label>日期：</label>
+                <input type="date" name="date" value="{{ record[1] }}" required>
+            </div>
+            <div class="form-group">
+                <label>收益/损失：</label>
+                <input type="text" name="amount" value="{{ record[2] }}" required>
+            </div>
+            <div class="form-group">
+                <label>备注：</label>
+                <input type="text" name="notes" value="{{ record[3] }}">
+            </div>
+            <div class="form-group">
+                <button type="submit">保存</button>
+            </div>
+        </form>
+        <a href="{{ url_for('detail') }}"><button>返回</button></a>
+    </div>
+</body>
+</html> 
