@@ -35,40 +35,26 @@ def load_user(user_id):
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'GET':
-        # 在首次访问登录页面时显示二维码
-        return render_template('login.html', 
-                             setup_key=TOTP_SECRET,
-                             qr_url=totp_uri)
+        return render_template('login.html')
     
     if request.method == 'POST':
         email = request.form['email']
         code = request.form['code']
         
         if email != 'grand.cayden@gmail.com':
-            return render_template('login.html', 
-                                 error='邮箱不正确',
-                                 setup_key=TOTP_SECRET,
-                                 qr_url=totp_uri)
+            return render_template('login.html', error='邮箱不正确')
         
         totp = pyotp.TOTP(TOTP_SECRET)
         try:
-            # 添加更大的时间窗口，允许30秒的误差
             if totp.verify(code, valid_window=1):
                 user = User(email)
                 login_user(user)
                 return redirect(url_for('landing'))
             else:
-                return render_template('login.html', 
-                                     error='验证码不正确，请确保手机时间准确',
-                                     setup_key=TOTP_SECRET,
-                                     qr_url=totp_uri)
+                return render_template('login.html', error='验证码不正确，请确保手机时间准确')
         except Exception as e:
-            # 添加错误日志
             print(f"验证错误: {str(e)}")
-            return render_template('login.html', 
-                                 error=f'验证失败: {str(e)}',
-                                 setup_key=TOTP_SECRET,
-                                 qr_url=totp_uri)
+            return render_template('login.html', error=f'验证失败: {str(e)}')
     
     return render_template('login.html')
 
