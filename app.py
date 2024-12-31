@@ -5,17 +5,23 @@ from datetime import datetime, date
 import pyotp
 import base64
 import os
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = base64.b64encode(os.urandom(24)).decode('utf-8')
+app.secret_key = os.getenv('FLASK_SECRET_KEY')
 
 # 初始化 Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# 使用固定的 TOTP 密钥
-TOTP_SECRET = 'JBSWY3DPEHPK3PXP'  # 这是一个示例密钥，您可以使用 pyotp.random_base32() 生成一个新的
+# 从环境变量获取 TOTP 密钥
+TOTP_SECRET = os.getenv('TOTP_SECRET')
+if not TOTP_SECRET:
+    raise ValueError("TOTP_SECRET not found in environment variables")
 
 # 生成 Google Authenticator 的二维码 URL
 totp_uri = pyotp.totp.TOTP(TOTP_SECRET).provisioning_uri(
