@@ -7,21 +7,35 @@ import base64
 import os
 from dotenv import load_dotenv
 
-# 加载环境变量
-load_dotenv()
+# 加载环境变量（仅在本地开发时使用）
+if os.path.exists('.env'):
+    load_dotenv()
+
+def get_secret(key: str) -> str:
+    """从环境变量或 /etc/secrets 获取密钥"""
+    # 首先尝试从环境变量获取
+    value = os.getenv(key)
+    if value:
+        return value
+    
+    # 如果环境变量不存在，尝试从 /etc/secrets 读取
+    secret_path = f'/etc/secrets/{key}'
+    if os.path.exists(secret_path):
+        with open(secret_path, 'r') as f:
+            return f.read().strip()
+    
+    raise ValueError(f"{key} not found in environment variables or /etc/secrets")
 
 app = Flask(__name__)
-app.secret_key = os.getenv('FLASK_SECRET_KEY')
+app.secret_key = get_secret('FLASK_SECRET_KEY')
 
 # 初始化 Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# 从环境变量获取 TOTP 密钥
-TOTP_SECRET = os.getenv('TOTP_SECRET')
-if not TOTP_SECRET:
-    raise ValueError("TOTP_SECRET not found in environment variables")
+# 获取 TOTP 密钥
+TOTP_SECRET = get_secret('TOTP_SECRET')
 
 # 生成 Google Authenticator 的二维码 URL
 totp_uri = pyotp.totp.TOTP(TOTP_SECRET).provisioning_uri(
