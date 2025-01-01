@@ -1,10 +1,12 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user, fresh_login_required
 import sqlite3
 from datetime import datetime, date, timedelta
 import pyotp
 import base64
 import os
+import io
+import zipfile
 from dotenv import load_dotenv
 
 # 加载环境变量（仅在本地开发时使用）
@@ -528,6 +530,33 @@ def casino_chart_data():
         'amounts': amounts,
         'type': chart_type
     })
+
+@app.route('/download_db')
+@login_required
+def download_db():
+    # 创建内存中的 ZIP 文件
+    memory_file = io.BytesIO()
+    with zipfile.ZipFile(memory_file, 'w') as zf:
+        # 添加 casino.db
+        if os.path.exists('casino.db'):
+            zf.write('casino.db')
+        # 添加 meter.db
+        if os.path.exists('meter.db'):
+            zf.write('meter.db')
+    
+    # 将指针移到文件开头
+    memory_file.seek(0)
+    
+    # 生成下载时的文件名
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f'database_backup_{timestamp}.zip'
+    
+    return send_file(
+        memory_file,
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name=filename
+    )
 
 if __name__ == '__main__':
     init_db()
