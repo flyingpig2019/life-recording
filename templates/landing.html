@@ -56,31 +56,10 @@
         .button:hover {
             background-color: #45a049;
         }
-        .download-btn {
-            display: inline-block;
-            padding: 8px 15px;
-            background-color: #17a2b8;
-            color: white;
-            text-decoration: none;
-            border-radius: 5px;
-            margin-right: 15px;
-            transition: background-color 0.3s;
-        }
-        .download-btn:hover {
-            background-color: #138496;
-            color: white;
-            text-decoration: none;
-        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div style="text-align: right; margin-bottom: 20px;">
-            <a href="{{ url_for('download_db') }}" class="download-btn">下载数据库</a>
-            <a href="{{ url_for('logout') }}" style="color: #dc3545; text-decoration: none;">
-                登出
-            </a>
-        </div>
         <h1 class="title">Danny's Monitor Jobs</h1>
         <div class="card-container">
             <div class="card">
