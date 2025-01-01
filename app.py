@@ -325,8 +325,9 @@ def total():
                          end_date=end_date)
 
 @app.route('/electricity')
+@login_required
 def electricity():
-    return render_template('electricityindex.html', current_date=datetime.now().strftime('%Y-%m-%d'))
+    return render_template('electricityindex.html', format_eastern_date=format_eastern_date)
 
 @app.route('/electricity/submit', methods=['POST'])
 def electricity_submit():

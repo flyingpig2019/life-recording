@@ -37,7 +37,7 @@
         <form action="/electricity/submit" method="post">
             <div class="form-group">
                 <label>日期：</label>
-                <input type="date" name="date" value="{{ current_date }}" required>
+                <input type="date" name="date" value="{{ format_eastern_date() }}" required>
             </div>
             <div class="form-group">
                 <label>电表读数：</label>
