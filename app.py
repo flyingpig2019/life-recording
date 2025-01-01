@@ -7,7 +7,21 @@ import base64
 import os
 import io
 import zipfile
+import pytz
 from dotenv import load_dotenv
+
+# 设置东部时区
+eastern = pytz.timezone('US/Eastern')
+
+def get_eastern_time():
+    """获取东部时间"""
+    return datetime.now(eastern)
+
+def format_eastern_date(dt=None):
+    """格式化东部时间日期"""
+    if dt is None:
+        dt = get_eastern_time()
+    return dt.strftime('%Y-%m-%d')
 
 # 加载环境变量（仅在本地开发时使用）
 if os.path.exists('.env'):
@@ -180,7 +194,7 @@ def landing():
 @app.route('/casino')
 @login_required
 def casino():
-    return render_template('casinoindex.html', current_date=datetime.now().strftime('%Y-%m-%d'))
+    return render_template('casinoindex.html', current_date=format_eastern_date())
 
 @app.route('/submit', methods=['POST'])
 @login_required
@@ -500,8 +514,8 @@ def electricity_coned():
     
     return render_template('coned.html', 
                          show_results=False,
-                         start_date=date.today().strftime('%Y-%m-%d'),
-                         end_date=date.today().strftime('%Y-%m-%d'))
+                         start_date=format_eastern_date(),
+                         end_date=format_eastern_date())
 
 @app.route('/casino/chart')
 def casino_chart():
@@ -548,7 +562,7 @@ def download_db():
     memory_file.seek(0)
     
     # 生成下载时的文件名
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    timestamp = get_eastern_time().strftime('%Y%m%d_%H%M%S')
     filename = f'database_backup_{timestamp}.zip'
     
     return send_file(
