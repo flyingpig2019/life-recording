@@ -26,9 +26,9 @@
         <h2>用电量图表分析</h2>
         <div class="form-group">
             <label>开始日期：</label>
-            <input type="date" id="start_date" required>
+            <input type="date" id="start_date" value="{{ format_eastern_date() }}" required>
             <label>结束日期：</label>
-            <input type="date" id="end_date" required>
+            <input type="date" id="end_date" value="{{ format_eastern_date() }}" required>
             <select id="chart_type">
                 <option value="line">折线图</option>
                 <option value="bar">柱状图</option>

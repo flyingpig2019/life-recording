@@ -167,11 +167,11 @@
                 <div class="date-inputs">
                     <div class="input-group">
                         <label>开始日期：</label>
-                        <input type="date" name="start_date" value="{{ start_date }}" required>
+                        <input type="date" name="start_date" value="{{ format_eastern_date() }}" required>
                     </div>
                     <div class="input-group">
                         <label>结束日期：</label>
-                        <input type="date" name="end_date" value="{{ end_date }}" required>
+                        <input type="date" name="end_date" value="{{ format_eastern_date() }}" required>
                     </div>
                     <button type="submit" class="calculate-btn">计算</button>
                 </div>

@@ -1,8 +1,110 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user, fresh_login_required
 import sqlite3
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
+import pyotp
+import base64
+import os
+import io
+import zipfile
+import pytz
+from dotenv import load_dotenv
+
+# 设置东部时区
+eastern = pytz.timezone('US/Eastern')
+
+def get_eastern_time():
+    """获取东部时间"""
+    return datetime.now(eastern)
+
+def format_eastern_date(dt=None):
+    """格式化东部时间日期"""
+    if dt is None:
+        dt = get_eastern_time()
+    return dt.strftime('%Y-%m-%d')
+
+# 加载环境变量（仅在本地开发时使用）
+if os.path.exists('.env'):
+    load_dotenv()
+
+# 设置会话配置
+class Config:
+    PERMANENT_SESSION_LIFETIME = timedelta(days=7)  # 设置会话持续7天
+    REMEMBER_COOKIE_DURATION = timedelta(days=7)    # 设置记住我cookie持续7天
+
+def get_secret(key: str) -> str:
+    """从环境变量或 /etc/secrets 获取密钥"""
+    # 首先尝试从环境变量获取
+    value = os.getenv(key)
+    if value:
+        return value
+    
+    # 如果环境变量不存在，尝试从 /etc/secrets 读取
+    secret_path = f'/etc/secrets/{key}'
+    if os.path.exists(secret_path):
+        with open(secret_path, 'r') as f:
+            return f.read().strip()
+    
+    raise ValueError(f"{key} not found in environment variables or /etc/secrets")
 
 app = Flask(__name__)
+app.secret_key = get_secret('FLASK_SECRET_KEY')
+app.config.from_object(Config)  # 应用会话配置
+
+# 初始化 Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+# 获取 TOTP 密钥
+TOTP_SECRET = get_secret('TOTP_SECRET')
+
+# 生成 Google Authenticator 的二维码 URL
+totp_uri = pyotp.totp.TOTP(TOTP_SECRET).provisioning_uri(
+    name="grand.cayden@gmail.com",
+    issuer_name="Danny's Monitor"
+)
+
+# 创建用户类
+class User(UserMixin):
+    def __init__(self, email):
+        self.id = email
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User(user_id)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'GET':
+        return render_template('login.html')
+    
+    if request.method == 'POST':
+        email = request.form['email']
+        code = request.form['code']
+        
+        if email != 'grand.cayden@gmail.com':
+            return render_template('login.html', error='邮箱不正确')
+        
+        totp = pyotp.TOTP(TOTP_SECRET)
+        try:
+            if totp.verify(code, valid_window=1):
+                user = User(email)
+                login_user(user, remember=True)  # 启用"记住我"功能
+                return redirect(url_for('landing'))
+            else:
+                return render_template('login.html', error='验证码不正确，请确保手机时间准确')
+        except Exception as e:
+            print(f"验证错误: {str(e)}")
+            return render_template('login.html', error=f'验证失败: {str(e)}')
+    
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
 
 def init_db():
     conn = sqlite3.connect('casino.db')
@@ -70,7 +172,7 @@ def update_existing_usage():
     conn = sqlite3.connect('meter.db')
     c = conn.cursor()
     
-    # 获取所有记录并按日期排���
+    # 获取所有记录并按日期排序
     c.execute('SELECT id, date, meter FROM meter_records ORDER BY date')
     records = c.fetchall()
     
@@ -85,14 +187,17 @@ def update_existing_usage():
     conn.close()
 
 @app.route('/')
+@login_required
 def landing():
     return render_template('landing.html')
 
 @app.route('/casino')
+@login_required
 def casino():
-    return render_template('casinoindex.html', current_date=datetime.now().strftime('%Y-%m-%d'))
+    return render_template('casinoindex.html', current_date=format_eastern_date())
 
 @app.route('/submit', methods=['POST'])
+@login_required
 def submit():
     date = request.form['date']
     amount = float(request.form['amount'])
@@ -108,6 +213,7 @@ def submit():
     return redirect(url_for('casino'))
 
 @app.route('/detail')
+@login_required
 def detail():
     conn = sqlite3.connect('casino.db')
     c = conn.cursor()
@@ -124,7 +230,7 @@ def edit(id):
         c.execute('SELECT * FROM casino_records WHERE id = ?', (id,))
         record = c.fetchone()
         conn.close()
-        return render_template('casinoedit.html', record=record)
+        return render_template('casinoedit.html', record=record, format_eastern_date=format_eastern_date)
     else:
         date = request.form['date']
         amount = float(request.form['amount'])
@@ -174,7 +280,7 @@ def remove(id):
 
 @app.route('/total', methods=['GET', 'POST'])
 def total():
-    current_date = date.today()
+    current_date = get_eastern_time()
     
     if request.method == 'POST':
         start_date = request.form['start_date']
@@ -182,7 +288,7 @@ def total():
     else:
         # 默认显示当月数据
         start_date = current_date.replace(day=1).strftime('%Y-%m-%d')
-        end_date = current_date.strftime('%Y-%m-%d')
+        end_date = format_eastern_date(current_date)
     
     conn = sqlite3.connect('casino.db')
     c = conn.cursor()
@@ -216,11 +322,13 @@ def total():
                          total_win=total_win,
                          total_loss=total_loss,
                          start_date=start_date,
-                         end_date=end_date)
+                         end_date=end_date,
+                         format_eastern_date=format_eastern_date)
 
 @app.route('/electricity')
+@login_required
 def electricity():
-    return render_template('electricityindex.html', current_date=datetime.now().strftime('%Y-%m-%d'))
+    return render_template('electricityindex.html', format_eastern_date=format_eastern_date)
 
 @app.route('/electricity/submit', methods=['POST'])
 def electricity_submit():
@@ -322,7 +430,7 @@ def electricity_remove(id):
 
 @app.route('/electricity/chart')
 def electricity_chart():
-    return render_template('chart.html')
+    return render_template('chart.html', format_eastern_date=format_eastern_date)
 
 @app.route('/electricity/chart-data', methods=['POST'])
 def electricity_chart_data():
@@ -375,7 +483,7 @@ def electricity_most():
                  ORDER BY usage DESC LIMIT 5''')
     highest = c.fetchall()
     
-    # 获取最低用电量的5条���录（按 usage 排序）
+    # 获取最低用电量的5条记录（按 usage 排序）
     c.execute('''SELECT * FROM meter_records 
                  ORDER BY usage ASC LIMIT 5''')
     lowest = c.fetchall()
@@ -384,6 +492,7 @@ def electricity_most():
     return render_template('most.html', 
                           highest=highest, 
                           lowest=lowest,
+                          format_eastern_date=format_eastern_date,
                           total_usage=total_usage)
 
 @app.route('/electricity/coned', methods=['GET', 'POST'])
@@ -408,12 +517,12 @@ def electricity_coned():
     
     return render_template('coned.html', 
                          show_results=False,
-                         start_date=date.today().strftime('%Y-%m-%d'),
-                         end_date=date.today().strftime('%Y-%m-%d'))
+                         start_date=format_eastern_date(),
+                         end_date=format_eastern_date())
 
 @app.route('/casino/chart')
 def casino_chart():
-    return render_template('casinochart.html')
+    return render_template('casinochart.html', format_eastern_date=format_eastern_date)
 
 @app.route('/casino/chart-data', methods=['POST'])
 def casino_chart_data():
@@ -439,8 +548,35 @@ def casino_chart_data():
         'type': chart_type
     })
 
+@app.route('/download_db')
+@login_required
+def download_db():
+    # 创建内存中的 ZIP 文件
+    memory_file = io.BytesIO()
+    with zipfile.ZipFile(memory_file, 'w') as zf:
+        # 添加 casino.db
+        if os.path.exists('casino.db'):
+            zf.write('casino.db')
+        # 添加 meter.db
+        if os.path.exists('meter.db'):
+            zf.write('meter.db')
+    
+    # 将指针移到文件开头
+    memory_file.seek(0)
+    
+    # 生成下载时的文件名
+    timestamp = get_eastern_time().strftime('%Y%m%d_%H%M%S')
+    filename = f'database_backup_{timestamp}.zip'
+    
+    return send_file(
+        memory_file,
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name=filename
+    )
+
 if __name__ == '__main__':
     init_db()
     init_meter_db()
     update_existing_usage()
-    app.run(debug=True, host='0.0.0.0', port=5008) 
+    app.run(debug=True, host='0.0.0.0', port=5000) 
