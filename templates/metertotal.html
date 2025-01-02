@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Electricity Usage Statistics</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="page-background"></div>
+    <div class="container">
+        <h1>用电量统计</h1>
+        
+        <!-- 总用电量统计部分 -->
+        <div class="section">
+            <h2>时段用电统计</h2>
+            <form action="{{ url_for('meter_usage') }}" method="post" class="inline-form">
+                <div class="form-group inline">
+                    <label>开始日期:</label>
+                    <input type="date" name="start_date" required>
+                </div>
+                <div class="form-group inline">
+                    <label>结束日期:</label>
+                    <input type="date" name="end_date" required>
+                </div>
+                <button type="submit">计算</button>
+                {% if total_usage is not none %}
+                <span class="result">总用电量: {{ total_usage }} 度</span>
+                {% endif %}
+            </form>
+        </div>
+        
+        <!-- 最高用电量记录 -->
+        <div class="section">
+            <h2>最高用电记录</h2>
+            {% if highest_usage %}
+            <table>
+                <tr>
+                    <th>日期</th>
+                    <th>用电量</th>
+                    <th>特斯拉充电</th>
+                    <th>备注</th>
+                </tr>
+                {% for record in highest_usage %}
+                <tr>
+                    <td>{{ record.date.strftime('%Y-%m-%d') }}</td>
+                    <td>{{ record.usage }}</td>
+                    <td>{{ record.tesla }}</td>
+                    <td>{{ record.notes }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+            {% endif %}
+        </div>
+        
+        <!-- 最低用电量记录 -->
+        <div class="section">
+            <h2>最低用电记录</h2>
+            {% if lowest_usage %}
+            <table>
+                <tr>
+                    <th>日期</th>
+                    <th>用电量</th>
+                    <th>特斯拉充电</th>
+                    <th>备注</th>
+                </tr>
+                {% for record in lowest_usage %}
+                <tr>
+                    <td>{{ record.date.strftime('%Y-%m-%d') }}</td>
+                    <td>{{ record.usage }}</td>
+                    <td>{{ record.tesla }}</td>
+                    <td>{{ record.notes }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+            {% endif %}
+        </div>
+        
+        <div class="button-group">
+            <a href="{{ url_for('meter_detail') }}"><button>返回上页</button></a>
+        </div>
+    </div>
+</body>
+</html> 

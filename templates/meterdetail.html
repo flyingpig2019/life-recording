@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Electricity Records Detail</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="page-background"></div>
+    <div class="container">
+        <h1>Electricity Records Detail</h1>
+        <div class="button-group">
+            <a href="{{ url_for('meter') }}"><button>返回上页</button></a>
+            <a href="{{ url_for('meter_chart') }}"><button>查看图表</button></a>
+            <a href="{{ url_for('meter_usage') }}"><button>用电统计</button></a>
+            <a href="{{ url_for('tesla_total') }}"><button>特斯拉充电</button></a>
+        </div>
+        <table>
+            <tr>
+                <th>Date</th>
+                <th>Meter Reading</th>
+                <th>Usage</th>
+                <th>Tesla</th>
+                <th>Notes</th>
+                <th>Actions</th>
+            </tr>
+            {% for record in records %}
+            <tr>
+                <td>{{ record.date.strftime('%Y-%m-%d') }}</td>
+                <td>{{ record.meter_read }}</td>
+                <td class="usage-value">{{ "%.1f"|format(record.usage) }}</td>
+                <td class="tesla-value">${{ "%.2f"|format(record.get('tesla', 0)) }}</td>
+                <td>{{ record.notes }}</td>
+                <td>
+                    <div class="dropdown">
+                        <button class="dropbtn">操作</button>
+                        <div class="dropdown-content">
+                            <a href="{{ url_for('edit_meter', record_id=record._id) }}">编辑</a>
+                            <a href="#" onclick="confirmDelete('{{ url_for('delete_meter', record_id=record._id) }}')">删除</a>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    <script>
+        function confirmDelete(deleteUrl) {
+            if (confirm('确定要删除这条记录吗？')) {
+                window.location.href = deleteUrl;
+            }
+        }
+    </script>
+</body>
+</html> 

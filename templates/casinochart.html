@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Casino Chart Analysis</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+</head>
+<body>
+    <div class="page-background"></div>
+    <div class="container">
+        <div class="title-container">
+            <img src="{{ url_for('static', filename='orange-logo.png') }}" alt="Logo" class="title-logo">
+            <h1>赌场收益图表</h1>
+        </div>
+        <form action="{{ url_for('casino_chart') }}" method="post">
+            <div class="form-group">
+                <label>开始日期:</label>
+                <input type="date" name="start_date" required>
+            </div>
+            <div class="form-group">
+                <label>结束日期:</label>
+                <input type="date" name="end_date" required>
+            </div>
+            <div class="form-group">
+                <label>图表类型:</label>
+                <select name="chart_type" required>
+                    <option value="line">折线图</option>
+                    <option value="bar">柱状图</option>
+                    <option value="pie">饼图</option>
+                </select>
+            </div>
+            <div class="button-group">
+                <button type="submit">生成图表</button>
+            </div>
+        </form>
+        
+        {% if chart_data %}
+        <div class="chart-container">
+            <canvas id="myChart"></canvas>
+        </div>
+        <script>
+            var ctx = document.getElementById('myChart').getContext('2d');
+            var chartData = {{ chart_data|tojson }};
+            if (chartData.type === 'line' || chartData.type === 'bar') {
+                chartData.options = chartData.options || {};
+                chartData.options.scales = chartData.options.scales || {};
+                chartData.options.scales.y = chartData.options.scales.y || {};
+                chartData.options.scales.y.ticks = {
+                    callback: function(value, index, values) {
+                        return '$' + value;
+                    }
+                };
+                if (chartData.type === 'line') {
+                    chartData.data.datasets[0].segment = {
+                        borderColor: function(ctx) {
+                            return ctx.p0.parsed.y >= 0 ? 'rgb(75, 192, 192)' : 'rgb(255, 99, 132)';
+                        },
+                        borderWidth: 2,
+                        tension: 0
+                    };
+                    chartData.data.datasets[0].pointBackgroundColor = function(ctx) {
+                        return ctx.raw >= 0 ? 'rgb(75, 192, 192)' : 'rgb(255, 99, 132)';
+                    };
+                    chartData.data.datasets[0].pointBorderColor = function(ctx) {
+                        return ctx.raw >= 0 ? 'rgb(75, 192, 192)' : 'rgb(255, 99, 132)';
+                    };
+                }
+            }
+            var myChart = new Chart(ctx, chartData);
+        </script>
+        {% endif %}
+        
+        <div class="button-group">
+            <a href="{{ url_for('casino_detail') }}"><button>返回上页</button></a>
+        </div>
+    </div>
+</body>
+</html> 
