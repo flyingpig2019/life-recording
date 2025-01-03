@@ -1,12 +1,17 @@
 import sqlite3
 
-def get_db():
+def get_db(db_type='casino'):
     """获取数据库连接"""
-    return sqlite3.connect('casino.db')
+    if db_type == 'casino':
+        return sqlite3.connect('casino.db')
+    elif db_type == 'meter':
+        return sqlite3.connect('meter.db')
+    else:
+        raise ValueError("Invalid database type")
 
 def init_casino_db():
     """初始化赌场数据库"""
-    conn = get_db()
+    conn = get_db('casino')
     cursor = conn.cursor()
     
     # 创建赌场记录表
@@ -23,7 +28,7 @@ def init_casino_db():
 
 def init_meter_db():
     """初始化电表数据库"""
-    conn = sqlite3.connect('meter.db')
+    conn = get_db('meter')
     cursor = conn.cursor()
     
     # 创建电表记录表

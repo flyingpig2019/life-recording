@@ -419,7 +419,7 @@ def electricity_detail():
 @app.route('/electricity/edit/<int:id>', methods=['GET', 'POST'])
 def electricity_edit(id):
     if request.method == 'GET':
-        conn = get_db()
+        conn = get_db('meter')
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM meter_records WHERE id = ?', (id,))
         record = cursor.fetchone()
@@ -435,7 +435,7 @@ def electricity_edit(id):
         print(f"\n[{format_eastern_date()}] 正在更新电表记录 ID: {id}...")
         print(f"新数据 - 日期: {date}, 电表读数: {meter}, 电费金额: {conedtesla}")
         
-        conn = get_db()
+        conn = get_db('meter')
         cursor = conn.cursor()
         
         # 更新当前记录
