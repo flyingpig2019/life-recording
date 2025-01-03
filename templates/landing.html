@@ -62,6 +62,44 @@
         .button:hover {
             background-color: #45a049;
         }
+        .sync-button {
+            background: linear-gradient(135deg, #ff9800, #f57c00);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .sync-button:hover {
+            background: linear-gradient(135deg, #f57c00, #ff9800);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        #syncStatus {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+        .success {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+        .error {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        pre {
+            text-align: left;
+            background: rgba(0,0,0,0.05);
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -76,14 +114,47 @@
             <div class="card">
                 <h2>Mom's Casino Record</h2>
                 <p>记录和追踪赌场收益与支出</p>
-                <a href="/casino" class="button">进入系统</a>
+                <a href="{{ url_for('casino_detail') }}" class="button">进入系统</a>
             </div>
             <div class="card">
                 <h2>Electricity Record</h2>
                 <p>记录和追踪电表读数与电费</p>
-                <a href="/electricity" class="button">进入系统</a>
+                <a href="{{ url_for('electricity_detail') }}" class="button">进入系统</a>
+            </div>
+            <div class="card">
+                <h2>数据同步</h2>
+                <p>从GitHub同步最新数据库</p>
+                <button onclick="syncDatabases()" class="sync-button">同步数据库</button>
+                <div id="syncStatus"></div>
             </div>
         </div>
     </div>
+
+    <script>
+    function syncDatabases() {
+        const statusDiv = document.getElementById('syncStatus');
+        statusDiv.style.display = 'block';
+        statusDiv.innerHTML = '正在同步数据...';
+        statusDiv.className = '';
+        
+        fetch('/sync-db', {
+            method: 'POST',
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                statusDiv.innerHTML = data.message;
+                statusDiv.className = 'success';
+            } else {
+                statusDiv.innerHTML = data.message;
+                statusDiv.className = 'error';
+            }
+        })
+        .catch(error => {
+            statusDiv.innerHTML = '同步出错：' + error;
+            statusDiv.className = 'error';
+        });
+    }
+    </script>
 </body>
 </html> 

@@ -11,6 +11,8 @@ import pytz
 from dotenv import load_dotenv
 from github_utils import push_db_updates
 from db import get_db, init_casino_db, init_meter_db
+import requests
+from urllib.parse import urljoin
 
 # 设置东部时区
 eastern = pytz.timezone('US/Eastern')
@@ -304,24 +306,26 @@ def edit(id):
         else:
             print(f"GitHub 推送失败: {message}")
         
-        return redirect(url_for('detail'))
+        return redirect(url_for('casino_detail'))
 
 @app.route('/remove/<int:id>')
 def remove(id):
-    conn = get_db()
-    with conn.cursor() as cursor:
-        # 删除记录
-        cursor.execute('DELETE FROM casino_records WHERE id = %s', (id,))
-        
-        # 更新所有记录的净收益
-        cursor.execute('''UPDATE casino_records 
-                         SET net = (SELECT SUM(amount) 
-                                   FROM casino_records AS cr2 
-                                   WHERE cr2.date <= casino_records.date)''')
+    conn = get_db('casino')
+    cursor = conn.cursor()
     
+    cursor.execute('DELETE FROM casino_records WHERE id=?', (id,))
     conn.commit()
+    
+    # 更新净收益
+    update_net_amount(conn, cursor)
+    
+    # 推送更新到GitHub
+    push_db_updates()
+    
+    cursor.close()
     conn.close()
-    return redirect(url_for('detail'))
+    
+    return redirect(url_for('casino_detail'))
 
 @app.route('/total', methods=['GET', 'POST'])
 def total():
@@ -627,6 +631,92 @@ def casino_chart_data():
         'amounts': amounts,
         'type': chart_type
     })
+
+@app.route('/sync-db', methods=['POST'])
+def sync_db():
+    try:
+        # 从 .env 获取 GitHub 配置
+        github_repo = os.getenv('GITHUB_REPO')
+        if not github_repo:
+            return jsonify({'success': False, 'message': '未找到 GitHub 仓库配置'})
+        
+        # 从 GitHub URL 提取用户名和仓库名
+        parts = github_repo.split('/')
+        username = parts[-2]
+        repo = parts[-1]
+        raw_base_url = f"https://raw.githubusercontent.com/{username}/{repo}/main/"
+        
+        print(f"使用仓库: {github_repo}")
+        print(f"原始文件URL: {raw_base_url}")
+        
+        # 下载 casino.db
+        casino_url = urljoin(raw_base_url, 'casino.db')
+        print(f"正在从 {casino_url} 下载 casino.db...")
+        
+        # 添加认证头
+        headers = {
+            'Authorization': f'token {os.getenv("GITHUB_TOKEN")}'
+        }
+        casino_response = requests.get(casino_url, headers=headers)
+        print(f"casino.db 响应状态码: {casino_response.status_code}")
+        
+        if casino_response.status_code == 200:
+            print("casino.db 下载成功")
+            try:
+                with open('casino.db', 'wb') as f:
+                    f.write(casino_response.content)
+                print("casino.db 保存成功")
+                print(f"casino.db 文件大小: {len(casino_response.content)} bytes")
+            except Exception as e:
+                print(f"casino.db 保存失败: {str(e)}")
+        else:
+            print(f"casino.db 下载失败: HTTP {casino_response.status_code}")
+            print(f"错误响应: {casino_response.text}")
+        
+        # 下载 meter.db
+        meter_url = urljoin(raw_base_url, 'meter.db')
+        print(f"正在从 {meter_url} 下载 meter.db...")
+        
+        meter_response = requests.get(meter_url, headers=headers)
+        print(f"meter.db 响应状态码: {meter_response.status_code}")
+        
+        if meter_response.status_code == 200:
+            print("meter.db 下载成功")
+            try:
+                with open('meter.db', 'wb') as f:
+                    f.write(meter_response.content)
+                print("meter.db 保存成功")
+                print(f"meter.db 文件大小: {len(meter_response.content)} bytes")
+            except Exception as e:
+                print(f"meter.db 保存失败: {str(e)}")
+        else:
+            print(f"meter.db 下载失败: HTTP {meter_response.status_code}")
+            print(f"错误响应: {meter_response.text}")
+        
+        # 验证文件是否存在和大小
+        if os.path.exists('casino.db'):
+            print(f"验证: casino.db 存在，大小: {os.path.getsize('casino.db')} bytes")
+        if os.path.exists('meter.db'):
+            print(f"验证: meter.db 存在，大小: {os.path.getsize('meter.db')} bytes")
+        
+        success = all([
+            casino_response.status_code == 200,
+            meter_response.status_code == 200,
+            os.path.exists('casino.db'),
+            os.path.exists('meter.db')
+        ])
+        
+        return jsonify({
+            'success': success,
+            'message': '数据库同步成功' if success else '数据库同步失败'
+        })
+    
+    except Exception as e:
+        print(f"发生异常: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': '同步失败'
+        })
 
 if __name__ == '__main__':
     init_db()
