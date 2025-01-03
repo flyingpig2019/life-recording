@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Danny's Monitor Jobs</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f2f5;
+        }
+        .container {
+            width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            text-align: center;
+        }
+        .title {
+            font-size: 2.5em;
+            color: #1a1a1a;
+            margin-bottom: 40px;
+        }
+        .card-container {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+        }
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            width: 200px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .card h2 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .card p {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+        .button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="text-align: right; margin-bottom: 20px;">
+            <a href="{{ url_for('logout') }}" style="color: #dc3545; text-decoration: none;">
+                登出
+            </a>
+        </div>
+        <h1 class="title">Danny's Monitor Jobs</h1>
+        <div class="card-container">
+            <div class="card">
+                <h2>Mom's Casino Record</h2>
+                <p>记录和追踪赌场收益与支出</p>
+                <a href="/casino" class="button">进入系统</a>
+            </div>
+            <div class="card">
+                <h2>Electricity Record</h2>
+                <p>记录和追踪电表读数与电费</p>
+                <a href="/electricity" class="button">进入系统</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

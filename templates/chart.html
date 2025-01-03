@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>用电量图表分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .container {
+            width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        select, input, button {
+            margin: 5px;
+            padding: 5px;
+        }
+        .chart-container {
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>用电量图表分析</h2>
+        <div class="form-group">
+            <label>开始日期：</label>
+            <input type="date" id="start_date" required>
+            <label>结束日期：</label>
+            <input type="date" id="end_date" required>
+            <select id="chart_type">
+                <option value="line">折线图</option>
+                <option value="bar">柱状图</option>
+                <option value="pie">饼图</option>
+            </select>
+            <button onclick="generateChart()">生成图表</button>
+        </div>
+        <div class="chart-container">
+            <canvas id="myChart"></canvas>
+        </div>
+        <div class="back-button" style="margin-top: 20px;">
+            <a href="/electricity/detail"><button>返回详情页</button></a>
+        </div>
+    </div>
+
+    <script>
+        let myChart = null;
+
+        function generateChart() {
+            const startDate = document.getElementById('start_date').value;
+            const endDate = document.getElementById('end_date').value;
+            const chartType = document.getElementById('chart_type').value;
+
+            fetch('/electricity/chart-data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `start_date=${startDate}&end_date=${endDate}&chart_type=${chartType}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (myChart) {
+                    myChart.destroy();
+                }
+
+                const ctx = document.getElementById('myChart').getContext('2d');
+                const config = {
+                    type: chartType === 'pie' ? 'pie' : chartType,
+                    data: {
+                        labels: data.dates,
+                        datasets: [{
+                            label: '用电量差值',
+                            data: data.meters,
+                            backgroundColor: chartType === 'pie' ? 
+                                data.meters.map(() => `hsl(${Math.random() * 360}, 70%, 50%)`) :
+                                'rgba(75, 192, 192, 0.2)',
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: chartType !== 'pie' ? {
+                            y: {
+                                beginAtZero: true
+                            }
+                        } : undefined
+                    }
+                };
+
+                myChart = new Chart(ctx, config);
+            });
+        }
+
+        // 设置默认日期
+        document.getElementById('start_date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('end_date').value = new Date().toISOString().split('T')[0];
+    </script>
+</body>
+</html> 

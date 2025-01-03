@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>电费记录</title>
+    <style>
+        .container {
+            width: 400px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        input, button {
+            margin: 5px 0;
+            padding: 5px;
+            width: 100%;
+        }
+        .note-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .ev-link {
+            text-decoration: none;
+            color: #007bff;
+            font-size: 14px;
+        }
+        .ev-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>电费记录系统</h2>
+        <form action="/electricity/submit" method="post">
+            <div class="form-group">
+                <label>日期：</label>
+                <input type="date" name="date" value="{{ current_date }}" required>
+            </div>
+            <div class="form-group">
+                <label>电表读数：</label>
+                <input type="number" step="0.01" name="meter" placeholder="输入当前电表读数" required>
+            </div>
+            <div class="form-group">
+                <label>电费金额：</label>
+                <input type="number" step="0.01" name="conedtesla" placeholder="输入实际支付的电费金额">
+            </div>
+            <div class="form-group">
+                <div class="note-container">
+                    <label>备注：</label>
+                    <a href="https://web.ev.energy/scny/dashboard" target="_blank" class="ev-link">EV Energy</a>
+                </div>
+                <input type="text" name="notes" placeholder="输入备注信息">
+            </div>
+            <div class="form-group">
+                <button type="submit">提交</button>
+            </div>
+        </form>
+        <a href="/electricity/detail"><button>查看详情</button></a>
+        <a href="/"><button>返回主页</button></a>
+    </div>
+</body>
+</html> 
