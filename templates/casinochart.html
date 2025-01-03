@@ -5,13 +5,19 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        body {
+            background: url('/static/chinese-dragon.png') no-repeat center center fixed;
+            background-size: cover;
+            background-color: rgba(255, 255, 255, 0.9);
+            background-blend-mode: overlay;
+        }
         .container {
             max-width: 1000px;
             margin: 50px auto;
             padding: 20px;
-            background-color: #f8f9fa;
+            background-color: rgba(248, 249, 250, 0.95);
             border-radius: 10px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
         }
         .header-section {
             background-color: #e3f2fd;
@@ -133,7 +139,7 @@
         </div>
 
         <div class="text-center">
-            <a href="{{ url_for('detail') }}" class="btn btn-secondary">返回详情页</a>
+            <a href="{{ url_for('casino_detail') }}" class="btn btn-secondary">返回详情页</a>
         </div>
     </div>
 
@@ -155,35 +161,84 @@
                 casinoChart.destroy();
             }
             
+            // 处理饼图数据
+            let pieData = [];
+            let pieColors = [];
+            let pieLabels = [];
+            if (data.type === 'pie') {
+                // 使用每天的数据
+                pieData = data.amounts.map(amount => Math.abs(amount));  // 取绝对值用于显示
+                pieColors = data.amounts.map(amount => 
+                    amount >= 0 ? 
+                    'rgba(75, 192, 92, 0.7)' :   // 盈利用绿色
+                    'rgba(231, 76, 60, 0.7)'     // 亏损用红色
+                );
+                pieLabels = data.dates.map((date, i) => 
+                    `${date} (${data.amounts[i] >= 0 ? '+' : ''}${data.amounts[i]})`
+                );
+            }
+            
             let chartConfig = {
                 type: data.type,
                 data: {
-                    labels: data.dates,
+                    labels: data.type === 'pie' ? pieLabels : data.dates,
                     datasets: [{
                         label: '赌场收益',
-                        data: data.amounts,
-                        backgroundColor: data.type === 'pie' ? 
-                            data.amounts.map(amount => amount >= 0 ? 'rgba(75, 192, 192, 0.2)' : 'rgba(255, 99, 132, 0.2)') :
-                            'rgba(75, 192, 192, 0.2)',
-                        borderColor: data.type === 'pie' ? 
-                            data.amounts.map(amount => amount >= 0 ? 'rgba(75, 192, 192, 1)' : 'rgba(255, 99, 132, 1)') :
-                            'rgba(75, 192, 192, 1)',
+                        data: data.type === 'pie' ? pieData : data.amounts,
+                        backgroundColor: data.type === 'bar' ? 
+                            data.amounts.map(value => 
+                                value < 0 ? 
+                                'rgba(231, 76, 60, 0.7)' :  // 负值用红色
+                                'rgba(52, 152, 219, 0.7)'   // 正值用蓝色
+                            ) :
+                            data.type === 'pie' ? pieColors : 'rgba(52, 152, 219, 0.7)',
+                        borderColor: data.type === 'bar' ?
+                            data.amounts.map(value => 
+                                value < 0 ? 
+                                'rgba(231, 76, 60, 1)' :    // 负值边框用深红色
+                                'rgba(52, 152, 219, 1)'     // 正值边框用深蓝色
+                            ) :
+                            data.type === 'pie' ? pieColors.map(color => color.replace('0.7', '1')) : 'rgba(52, 152, 219, 1)',
                         borderWidth: 1
                     }]
                 },
                 options: {
                     responsive: true,
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.raw;
+                                    if (data.type === 'pie') {
+                                        const originalValue = data.amounts[context.dataIndex];
+                                        const percentage = ((Math.abs(originalValue) / pieData.reduce((a, b) => a + b, 0)) * 100).toFixed(1);
+                                        return `${data.dates[context.dataIndex]}: ${originalValue >= 0 ? '+' : ''}${originalValue.toFixed(2)} (${percentage}%)`;
+                                    } else {
+                                        return `收益: ${value >= 0 ? '+' : ''}${value.toFixed(2)}`;
+                                    }
+                                }
+                            }
+                        }
+                    },
                     scales: data.type !== 'pie' ? {
                         y: {
-                            beginAtZero: true
+                            beginAtZero: true,
+                            grid: {
+                                color: function(context) {
+                                    if (context.tick.value === 0) {
+                                        return 'rgba(255, 193, 7, 0.8)';  // 金黄色
+                                    }
+                                    return 'rgba(0, 0, 0, 0.1)';  // 默认网格线颜色
+                                },
+                                lineWidth: function(context) {
+                                    if (context.tick.value === 0) {
+                                        return 2;  // 零线加粗
+                                    }
+                                    return 1;  // 默认网格线宽度
+                                }
+                            }
                         }
-                    } : {},
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'top'
-                        }
-                    }
+                    } : undefined
                 }
             };
             

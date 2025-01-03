@@ -3,10 +3,19 @@
 <head>
     <title>编辑记录</title>
     <style>
+        body {
+            background: url("{{ url_for('static', filename='chinese-dragon.png') }}") no-repeat center center fixed;
+            background-size: cover;
+            background-color: rgba(255, 255, 255, 0.9);
+            background-blend-mode: overlay;
+        }
         .container {
             width: 400px;
             margin: 50px auto;
             padding: 20px;
+            background-color: rgba(248, 249, 250, 0.95);
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
         }
         .form-group {
             margin-bottom: 15px;
@@ -38,7 +47,7 @@
                 <button type="submit">保存</button>
             </div>
         </form>
-        <a href="{{ url_for('detail') }}"><button>返回</button></a>
+        <a href="{{ url_for('casino_detail') }}"><button>返回</button></a>
     </div>
 </body>
 </html> 

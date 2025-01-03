@@ -239,15 +239,26 @@ def submit():
     
     return redirect(url_for('casino'))
 
-@app.route('/detail')
-@login_required
-def detail():
-    conn = sqlite3.connect('casino.db')
-    c = conn.cursor()
-    c.execute('SELECT * FROM casino_records ORDER BY date DESC')
-    records = c.fetchall()
+def get_records(page, per_page):
+    conn = get_db('casino')
+    cursor = conn.cursor()
+    offset = (page - 1) * per_page
+    cursor.execute('SELECT * FROM casino_records ORDER BY date DESC LIMIT ? OFFSET ?', (per_page, offset))
+    records = cursor.fetchall()
+    cursor.execute('SELECT COUNT(*) FROM casino_records')
+    total_records = cursor.fetchone()[0]
+    cursor.close()
     conn.close()
-    return render_template('casinodetail.html', records=records)
+    return records, total_records
+
+@app.route('/casino/detail')
+@login_required
+def casino_detail():
+    page = request.args.get('page', 1, type=int)
+    per_page = 25
+    records, total_records = get_records(page, per_page)
+    total_pages = (total_records + per_page - 1) // per_page
+    return render_template('casinodetail.html', records=records, page=page, total_pages=total_pages)
 
 @app.route('/edit/<int:id>', methods=['GET', 'POST'])
 def edit(id):
@@ -407,14 +418,26 @@ def electricity_submit():
     
     return redirect(url_for('electricity'))
 
-@app.route('/electricity/detail')
-def electricity_detail():
-    conn = sqlite3.connect('meter.db')
-    c = conn.cursor()
-    c.execute('SELECT * FROM meter_records ORDER BY date DESC')
-    records = c.fetchall()
+def get_meter_records(page, per_page):
+    conn = get_db('meter')
+    cursor = conn.cursor()
+    offset = (page - 1) * per_page
+    cursor.execute('SELECT * FROM meter_records ORDER BY date DESC LIMIT ? OFFSET ?', (per_page, offset))
+    records = cursor.fetchall()
+    cursor.execute('SELECT COUNT(*) FROM meter_records')
+    total_records = cursor.fetchone()[0]
+    cursor.close()
     conn.close()
-    return render_template('meterdetail.html', records=records)
+    return records, total_records
+
+@app.route('/electricity/detail')
+@login_required
+def electricity_detail():
+    page = request.args.get('page', 1, type=int)
+    per_page = 25
+    records, total_records = get_meter_records(page, per_page)
+    total_pages = (total_records + per_page - 1) // per_page
+    return render_template('meterdetail.html', records=records, page=page, total_pages=total_pages)
 
 @app.route('/electricity/edit/<int:id>', methods=['GET', 'POST'])
 def electricity_edit(id):
@@ -491,9 +514,9 @@ def electricity_chart_data():
     end_date = request.form['end_date']
     chart_type = request.form['chart_type']
     
-    conn = sqlite3.connect('meter.db')
+    conn = get_db('meter')
     c = conn.cursor()
-    c.execute('''SELECT date, usage 
+    c.execute('''SELECT date, usage, conedtesla 
                  FROM meter_records 
                  WHERE date BETWEEN ? AND ?
                  ORDER BY date''', (start_date, end_date))
@@ -501,51 +524,56 @@ def electricity_chart_data():
     conn.close()
     
     dates = [record[0] for record in records]
-    usages = [record[1] for record in records]
+    meters = [record[1] for record in records]
+    conedtesla = [record[2] for record in records]
     
     return jsonify({
         'dates': dates,
-        'meters': usages,
+        'meters': meters,
+        'conedtesla': conedtesla,
         'type': chart_type
     })
 
 @app.route('/electricity/most', methods=['GET', 'POST'])
 def electricity_most():
-    total_usage = None
     if request.method == 'POST':
         start_date = request.form['start_date']
         end_date = request.form['end_date']
+        conn = get_db('meter')
+        cursor = conn.cursor()
         
-        conn = sqlite3.connect('meter.db')
-        c = conn.cursor()
+        # 获取最高和最低用电量记录
+        cursor.execute('''SELECT * FROM meter_records 
+                         WHERE date BETWEEN ? AND ?
+                         ORDER BY usage DESC LIMIT 5''', (start_date, end_date))
+        highest = cursor.fetchall()
         
-        # 计算指定日期范围内的总用电量
-        c.execute('''SELECT SUM(usage) 
-                    FROM meter_records 
-                    WHERE date BETWEEN ? AND ?''', (start_date, end_date))
-        total_usage = c.fetchone()[0] or 0
-        total_usage = round(total_usage, 2)  # 保留两位小数
+        cursor.execute('''SELECT * FROM meter_records 
+                         WHERE date BETWEEN ? AND ?
+                         ORDER BY usage ASC LIMIT 5''', (start_date, end_date))
+        lowest = cursor.fetchall()
+        
+        # 计算平均用电量和总用电量
+        cursor.execute('''SELECT AVG(usage), SUM(usage) FROM meter_records 
+                         WHERE date BETWEEN ? AND ?''', (start_date, end_date))
+        stats = cursor.fetchone()
+        avg_usage = stats[0]
+        total_usage = stats[1]
+        
         conn.close()
- 
-    # 重新连接数据库获取最高和最低用电量记录
-    conn = sqlite3.connect('meter.db')
-    c = conn.cursor()
+        return render_template('most.html', 
+                             highest=highest, 
+                             lowest=lowest,
+                             start_date=start_date,
+                             end_date=end_date,
+                             show_results=True,
+                             avg_usage=avg_usage,
+                             total_usage=total_usage)
     
-    # 获取最高用电量的5条记录（按 usage 排序）
-    c.execute('''SELECT * FROM meter_records 
-                 ORDER BY usage DESC LIMIT 5''')
-    highest = c.fetchall()
-    
-    # 获取最低用电量的5条记录（按 usage 排序）
-    c.execute('''SELECT * FROM meter_records 
-                 ORDER BY usage ASC LIMIT 5''')
-    lowest = c.fetchall()
-    
-    conn.close()
     return render_template('most.html', 
-                          highest=highest, 
-                          lowest=lowest,
-                          total_usage=total_usage)
+                         start_date=date.today().strftime('%Y-%m-%d'),
+                         end_date=date.today().strftime('%Y-%m-%d'),
+                         show_results=False)
 
 @app.route('/electricity/coned', methods=['GET', 'POST'])
 def electricity_coned():

@@ -3,13 +3,19 @@
 <head>
     <title>赌场收益监控</title>
     <style>
+        body {
+            background: url('/static/chinese-dragon.png') no-repeat center center fixed;
+            background-size: cover;
+            background-color: rgba(255, 255, 255, 0.9);
+            background-blend-mode: overlay;
+        }
         .container {
             width: 400px;
             margin: 50px auto;
             padding: 20px;
-            background-color: #f8f9fa;
+            background-color: rgba(248, 249, 250, 0.95);
             border-radius: 10px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
         }
         .form-group {
             margin-bottom: 15px;
@@ -19,24 +25,37 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
             display: flex;
             align-items: center;
+            gap: 10px;
         }
         .form-group label {
-            width: 100px;
+            width: 80px;
             flex-shrink: 0;
             color: #2c3e50;
             font-weight: 500;
+            white-space: nowrap;
         }
         input, button {
             margin: 5px 0;
             padding: 5px;
-            width: 200px;
+            width: calc(100% - 90px);
             border: 1px solid #ddd;
             border-radius: 4px;
             padding: 8px 12px;
             transition: all 0.3s;
         }
         .submit-button {
-            width: 100% !important;
+            width: 50% !important;
+            margin: 0 auto;
+            background: linear-gradient(135deg, #ff9800, #f57c00) !important;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+        .submit-button:hover {
+            background: linear-gradient(135deg, #f57c00, #ff9800) !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
         input:focus {
             outline: none;
@@ -101,7 +120,45 @@
         .amount-input input {
             padding-left: 25px;
         }
+        .button-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            width: 50%;
+            margin: 0 auto;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+        }
+        .btn-secondary {
+            background: linear-gradient(135deg, #17a2b8, #138496);
+            color: white;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
     </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
     <div class="container">
@@ -128,9 +185,13 @@
                 <button type="submit" class="submit-button">保存记录</button>
             </div>
         </form>
-        <div class="button-group">
-            <a href="/detail"><button>查看详情</button></a>
-            <a href="/"><button type="button">返回主页</button></a>
+        <div class="btn-group">
+            <a href="{{ url_for('casino_detail') }}" class="btn btn-primary">
+                <i class="fas fa-list"></i>查看详情
+            </a>
+            <a href="/" class="btn btn-secondary">
+                <i class="fas fa-home"></i>返回主页
+            </a>
         </div>
     </div>
     <script>
