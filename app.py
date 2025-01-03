@@ -1,11 +1,33 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user, fresh_login_required
 import sqlite3
 from datetime import datetime, date, timedelta
 import pyotp
 import base64
 import os
+import io
+import zipfile
+import pytz
 from dotenv import load_dotenv
+from github_utils import push_db_updates
+from db import get_db, init_casino_db, init_meter_db
+
+# 设置东部时区
+eastern = pytz.timezone('US/Eastern')
+
+# 初始化数据库
+init_casino_db()
+init_meter_db()
+
+def get_eastern_time():
+    """获取东部时间"""
+    return datetime.now(eastern)
+
+def format_eastern_date(dt=None):
+    """格式化东部时间日期"""
+    if dt is None:
+        dt = get_eastern_time()
+    return dt.strftime('%Y-%m-%d')
 
 # 加载环境变量（仅在本地开发时使用）
 if os.path.exists('.env'):
@@ -208,6 +230,13 @@ def submit():
     
     conn.commit()
     conn.close()
+    
+    # 推送数据库更新到 GitHub
+    success, message = push_db_updates()
+    print(f"GitHub 推送结果: {success}, {message}")
+    if not success:
+        print(f"GitHub 推送失败: {message}")
+    
     return redirect(url_for('casino'))
 
 @app.route('/detail')
@@ -224,9 +253,10 @@ def detail():
 def edit(id):
     if request.method == 'GET':
         conn = get_db()
-        with conn.cursor() as cursor:
-            cursor.execute('SELECT * FROM casino_records WHERE id = %s', (id,))
-            record = cursor.fetchone()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM casino_records WHERE id = ?', (id,))
+        record = cursor.fetchone()
+        cursor.close()
         conn.close()
         return render_template('casinoedit.html', record=record, format_eastern_date=format_eastern_date)
     else:
@@ -235,20 +265,34 @@ def edit(id):
         notes = request.form['notes']
         
         conn = get_db()
-        with conn.cursor() as cursor:
-            # 更新当前记录
-            cursor.execute('''UPDATE casino_records 
-                             SET date = %s, amount = %s, notes = %s
-                             WHERE id = %s''', (date, amount, notes, id))
-            
-            # 更新所有记录的净收益
-            cursor.execute('''UPDATE casino_records 
-                             SET net = (SELECT SUM(amount) 
-                                       FROM casino_records AS cr2 
-                                       WHERE cr2.date <= casino_records.date)''')
+        cursor = conn.cursor()
+        
+        # 获取当前记录的金额
+        cursor.execute('SELECT amount FROM casino_records WHERE id = ?', (id,))
+        old_amount = cursor.fetchone()[0]
+        
+        # 更新记录
+        cursor.execute('''UPDATE casino_records 
+                         SET date = ?, amount = ?, notes = ?
+                         WHERE id = ?''', (date, amount, notes, id))
+        
+        # 更新此记录之后的所有净收益
+        cursor.execute('''UPDATE casino_records 
+                         SET net = net + ? - ?
+                         WHERE id >= ?''', (amount, old_amount, id))
         
         conn.commit()
+        cursor.close()
         conn.close()
+        
+        # 推送数据库更新到 GitHub
+        print("\n正在推送更新到 GitHub...")
+        success, message = push_db_updates()
+        if success:
+            print(f"GitHub 推送成功: {message}")
+        else:
+            print(f"GitHub 推送失败: {message}")
+        
         return redirect(url_for('detail'))
 
 @app.route('/remove/<int:id>')
@@ -325,27 +369,41 @@ def electricity_submit():
     notes = request.form['notes']
     conedtesla = float(request.form['conedtesla']) if request.form['conedtesla'] else 0
     
-    # 计算用电量（当前读数减去前一次读数）
-    conn = sqlite3.connect('meter.db')
-    c = conn.cursor()
+    print(f"\n[{format_eastern_date()}] 正在添加电表记录...")
+    print(f"日期: {date}")
+    print(f"电表读数: {meter}")
+    print(f"电费金额: {conedtesla}")
+    print(f"备注: {notes}")
     
-    # 获取前一次的读数
-    c.execute('''SELECT meter FROM meter_records 
-                 WHERE date < ? 
-                 ORDER BY date DESC LIMIT 1''', (date,))
-    last_record = c.fetchone()
-    
-    # 计算用电量
-    usage = round(meter - last_record[0], 2) if last_record else 0
-    
-    # 插入新记录
-    c.execute('''INSERT INTO meter_records 
-                 (date, meter, usage, notes, conedtesla) 
-                 VALUES (?, ?, ?, ?, ?)''',
-              (date, meter, usage, notes, conedtesla))
+    conn = get_db()
+    with conn.cursor() as cursor:
+        # 获取前一次的读数
+        cursor.execute('''SELECT meter FROM meter_records 
+                        WHERE date < ? 
+                        ORDER BY date DESC LIMIT 1''', (date,))
+        last_record = cursor.fetchone()
+        
+        # 计算用电量
+        usage = round(meter - last_record[0], 2) if last_record else 0
+        print(f"计算得到用电量: {usage} kWh")
+        
+        # 插入新记录
+        cursor.execute('''INSERT INTO meter_records 
+                        (date, meter, usage, notes, conedtesla) 
+                        VALUES (?, ?, ?, ?, ?)''',
+                    (date, meter, usage, notes, conedtesla))
     
     conn.commit()
     conn.close()
+    print("数据库更新成功!")
+    
+    # 推送数据库更新到 GitHub
+    print("\n正在推送更新到 GitHub...")
+    success, message = push_db_updates()
+    if success:
+        print(f"GitHub 推送成功: {message}")
+    else:
+        print(f"GitHub 推送失败: {message}")
     
     return redirect(url_for('electricity'))
 
@@ -361,10 +419,11 @@ def electricity_detail():
 @app.route('/electricity/edit/<int:id>', methods=['GET', 'POST'])
 def electricity_edit(id):
     if request.method == 'GET':
-        conn = sqlite3.connect('meter.db')
-        c = conn.cursor()
-        c.execute('SELECT * FROM meter_records WHERE id = ?', (id,))
-        record = c.fetchone()
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM meter_records WHERE id = ?', (id,))
+        record = cursor.fetchone()
+        cursor.close()
         conn.close()
         return render_template('meteredit.html', record=record)
     else:
@@ -373,38 +432,44 @@ def electricity_edit(id):
         notes = request.form['notes']
         conedtesla = float(request.form['conedtesla']) if request.form['conedtesla'] else 0
         
-        conn = sqlite3.connect('meter.db')
-        c = conn.cursor()
+        print(f"\n[{format_eastern_date()}] 正在更新电表记录 ID: {id}...")
+        print(f"新数据 - 日期: {date}, 电表读数: {meter}, 电费金额: {conedtesla}")
         
-        # 获取前一条记录的电表读数
-        c.execute('''SELECT meter FROM meter_records 
-                    WHERE date < ? 
-                    ORDER BY date DESC LIMIT 1''', (date,))
-        prev_record = c.fetchone()
-        
-        # 计算当前记录的用电量
-        usage = round(meter - prev_record[0], 2) if prev_record else 0
+        conn = get_db()
+        cursor = conn.cursor()
         
         # 更新当前记录
-        c.execute('''UPDATE meter_records 
-                    SET date = ?, meter = ?, usage = ?, notes = ?, conedtesla = ?
-                    WHERE id = ?''', (date, meter, usage, notes, conedtesla, id))
+        cursor.execute('''UPDATE meter_records 
+                         SET date = ?, meter = ?, notes = ?, conedtesla = ?
+                         WHERE id = ?''', (date, meter, notes, conedtesla, id))
         
-        # 更新后续记录的用电量
-        c.execute('''SELECT id, date, meter FROM meter_records 
-                    WHERE date > ? 
-                    ORDER BY date''', (date,))
-        subsequent_records = c.fetchall()
+        print("记录更新成功!")
         
-        prev_meter = meter
-        for record in subsequent_records:
-            current_usage = round(record[2] - prev_meter, 2)
-            c.execute('UPDATE meter_records SET usage = ? WHERE id = ?', 
-                     (current_usage, record[0]))
+        # 更新所有用电量
+        cursor.execute('SELECT id, date, meter FROM meter_records ORDER BY date')
+        records = cursor.fetchall()
+        
+        print("正在重新计算所有用电量...")
+        prev_meter = None
+        for record in records:
+            usage = 0 if prev_meter is None else round(record[2] - prev_meter, 2)
+            cursor.execute('UPDATE meter_records SET usage = ? WHERE id = ?', 
+                         (usage, record[0]))
             prev_meter = record[2]
         
         conn.commit()
+        cursor.close()
         conn.close()
+        print("所有用电量更新完成!")
+        
+        # 推送数据库更新到 GitHub
+        print("\n正在推送更新到 GitHub...")
+        success, message = push_db_updates()
+        if success:
+            print(f"GitHub 推送成功: {message}")
+        else:
+            print(f"GitHub 推送失败: {message}")
+        
         return redirect(url_for('electricity_detail'))
 
 @app.route('/electricity/remove/<int:id>')
