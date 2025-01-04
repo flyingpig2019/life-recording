@@ -211,33 +211,29 @@ def submit():
     amount = float(request.form['amount'])
     notes = request.form['notes']
     
-    conn = get_db()
-    with conn.cursor() as cursor:
-        # 计算当前记录的净收益（从第一条记录到当前记录的所有金额之和）
-        cursor.execute('''SELECT COALESCE(SUM(amount), 0) 
-                         FROM casino_records 
-                         WHERE date <= %s''', (date,))
-        net = cursor.fetchone()[0] + amount
+    conn = get_db('casino')
+    cursor = conn.cursor()
+    try:
+        # 获取前一条记录的净收益
+        cursor.execute('''SELECT net FROM casino_records 
+                         WHERE date < ? 
+                         ORDER BY date DESC LIMIT 1''', (date,))
+        last_record = cursor.fetchone()
+        
+        # 计算新的净收益
+        net = amount + (last_record[0] if last_record else 0)
         
         # 插入新记录
-        cursor.execute('INSERT INTO casino_records (date, amount, net, notes) VALUES (%s, %s, %s, %s)',
-                      (date, amount, net, notes))
-        
-        # 更新此记录之后的所有净收益
-        cursor.execute('''UPDATE casino_records 
-                         SET net = (SELECT SUM(amount) 
-                                   FROM casino_records AS cr2 
-                                   WHERE cr2.date <= casino_records.date)
-                         WHERE date > %s''', (date,))
+        cursor.execute('''INSERT INTO casino_records (date, amount, net, notes)
+                        VALUES (?, ?, ?, ?)''', 
+                     (date, amount, net, notes))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
     
-    conn.commit()
-    conn.close()
-    
-    # 推送数据库更新到 GitHub
-    success, message = push_db_updates()
-    print(f"GitHub 推送结果: {success}, {message}")
-    if not success:
-        print(f"GitHub 推送失败: {message}")
+    # 推送更新到GitHub
+    push_db_updates()
     
     return redirect(url_for('casino'))
 
@@ -309,21 +305,40 @@ def edit(id):
         return redirect(url_for('casino_detail'))
 
 @app.route('/remove/<int:id>')
+@login_required
 def remove(id):
     conn = get_db('casino')
     cursor = conn.cursor()
-    
-    cursor.execute('DELETE FROM casino_records WHERE id=?', (id,))
-    conn.commit()
-    
-    # 更新净收益
-    update_net_amount(conn, cursor)
+    try:
+        # 获取要删除记录的日期
+        cursor.execute('SELECT date FROM casino_records WHERE id=?', (id,))
+        record = cursor.fetchone()
+        if not record:
+            # 如果记录不存在，直接返回
+            return redirect(url_for('casino_detail'))
+        
+        # 删除记录
+        cursor.execute('DELETE FROM casino_records WHERE id=?', (id,))
+        
+        # 重新计算所有记录的净收益
+        cursor.execute('SELECT id, amount FROM casino_records ORDER BY date')
+        records = cursor.fetchall()
+        
+        net = 0
+        for record in records:
+            net += record[1]  # 累加金额
+            cursor.execute('UPDATE casino_records SET net=? WHERE id=?', (net, record[0]))
+        
+        conn.commit()
+    except Exception as e:
+        print(f"删除记录时发生错误: {str(e)}")
+        conn.rollback()
+    finally:
+        cursor.close()
+        conn.close()
     
     # 推送更新到GitHub
     push_db_updates()
-    
-    cursor.close()
-    conn.close()
     
     return redirect(url_for('casino_detail'))
 
@@ -378,47 +393,36 @@ def electricity():
     return render_template('electricityindex.html', current_date=datetime.now().strftime('%Y-%m-%d'))
 
 @app.route('/electricity/submit', methods=['POST'])
+@login_required
 def electricity_submit():
     date = request.form['date']
     meter = float(request.form['meter'])
     notes = request.form['notes']
-    conedtesla = float(request.form['conedtesla']) if request.form['conedtesla'] else 0
+    conedtesla = request.form.get('conedtesla', type=float, default=0)
     
-    print(f"\n[{format_eastern_date()}] 正在添加电表记录...")
-    print(f"日期: {date}")
-    print(f"电表读数: {meter}")
-    print(f"电费金额: {conedtesla}")
-    print(f"备注: {notes}")
-    
-    conn = get_db()
-    with conn.cursor() as cursor:
-        # 获取前一次的读数
+    conn = get_db('meter')
+    cursor = conn.cursor()
+    try:
+        # 获取前一条记录的电表读数
         cursor.execute('''SELECT meter FROM meter_records 
-                        WHERE date < ? 
-                        ORDER BY date DESC LIMIT 1''', (date,))
+                         WHERE date < ? 
+                         ORDER BY date DESC LIMIT 1''', (date,))
         last_record = cursor.fetchone()
         
         # 计算用电量
         usage = round(meter - last_record[0], 2) if last_record else 0
-        print(f"计算得到用电量: {usage} kWh")
         
         # 插入新记录
-        cursor.execute('''INSERT INTO meter_records 
-                        (date, meter, usage, notes, conedtesla) 
-                        VALUES (?, ?, ?, ?, ?)''',
-                    (date, meter, usage, notes, conedtesla))
+        cursor.execute('''INSERT INTO meter_records (date, meter, usage, notes, conedtesla)
+                        VALUES (?, ?, ?, ?, ?)''', 
+                     (date, meter, usage, notes, conedtesla))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
     
-    conn.commit()
-    conn.close()
-    print("数据库更新成功!")
-    
-    # 推送数据库更新到 GitHub
-    print("\n正在推送更新到 GitHub...")
-    success, message = push_db_updates()
-    if success:
-        print(f"GitHub 推送成功: {message}")
-    else:
-        print(f"GitHub 推送失败: {message}")
+    # 推送更新到GitHub
+    push_db_updates()
     
     return redirect(url_for('electricity'))
 
