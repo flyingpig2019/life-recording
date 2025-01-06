@@ -40,6 +40,20 @@ def init_meter_db():
                       notes TEXT,
                       conedtesla REAL)''')
     
+    # 创建血压记录表
+    cursor.execute('''CREATE TABLE IF NOT EXISTS bp_records
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      date TEXT NOT NULL,
+                      medicinetaken BOOLEAN DEFAULT FALSE,
+                      morning_high INTEGER,
+                      morning_low INTEGER,
+                      night_high INTEGER,
+                      night_low INTEGER,
+                      avg_high REAL,
+                      avg_low REAL,
+                      risk_level TEXT,
+                      notes TEXT)''')
+    
     conn.commit()
     cursor.close()
     conn.close() 

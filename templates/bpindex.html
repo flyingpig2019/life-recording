@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>血压记录</title>
+    <style>
+        body {
+            background: url('/static/chinese-dragon.png') no-repeat center center fixed;
+            background-size: cover;
+            background-color: rgba(255, 255, 255, 0.9);
+            background-blend-mode: overlay;
+        }
+        .container {
+            width: 400px;
+            margin: 50px auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .main-card {
+            background-color: rgba(248, 249, 250, 0.95);
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            padding: 20px;
+        }
+        .card-header {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e3e8ec;
+        }
+        .card-header h2 {
+            color: #2c3e50;
+            margin: 0;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 15px;
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .form-group label {
+            width: 80px;
+            flex-shrink: 0;
+            color: #2c3e50;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        input, button {
+            margin: 5px 0;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px 12px;
+            transition: all 0.3s;
+        }
+        input[type="number"] {
+            width: 80px;
+        }
+        .pressure-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .submit-button {
+            width: 100px;
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .submit-button:hover {
+            background: linear-gradient(135deg, #45a049, #4CAF50);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .nav-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            text-align: center;
+            color: white;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+        }
+        .btn-secondary {
+            background: linear-gradient(135deg, #17a2b8, #138496);
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-card">
+            <div class="card-header">
+                <h2>血压记录</h2>
+            </div>
+            
+            <div class="form-group">
+                <label>日期：</label>
+                <input type="date" id="date" value="{{ current_date }}" required>
+            </div>
+            
+            <div class="form-group checkbox-group">
+                <label>服药情况：</label>
+                <input type="checkbox" id="medicinetaken">
+                <span>已服药</span>
+                <button onclick="submitMedicine()" class="submit-button">提交服药记录</button>
+            </div>
+            
+            <div class="form-group">
+                <label>早晨血压：</label>
+                <div class="pressure-group">
+                    <input type="number" id="morning_high" placeholder="高压" min="0" max="300">
+                    <span>/</span>
+                    <input type="number" id="morning_low" placeholder="低压" min="0" max="300">
+                    <button onclick="submitMorning()" class="submit-button">提交</button>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>晚间血压：</label>
+                <div class="pressure-group">
+                    <input type="number" id="night_high" placeholder="高压" min="0" max="300">
+                    <span>/</span>
+                    <input type="number" id="night_low" placeholder="低压" min="0" max="300">
+                    <button onclick="submitNight()" class="submit-button">提交</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="nav-buttons">
+            <a href="{{ url_for('bp_detail') }}" class="btn btn-primary">查看详情</a>
+            <a href="/" class="btn btn-secondary">返回主页</a>
+        </div>
+    </div>
+
+    <script>
+        function submitMorning() {
+            const data = {
+                date: document.getElementById('date').value,
+                medicinetaken: document.getElementById('medicinetaken').checked,
+                morning_high: document.getElementById('morning_high').value,
+                morning_low: document.getElementById('morning_low').value,
+                type: 'morning'
+            };
+            
+            submitData(data);
+        }
+
+        function submitNight() {
+            const data = {
+                date: document.getElementById('date').value,
+                medicinetaken: document.getElementById('medicinetaken').checked,
+                night_high: document.getElementById('night_high').value,
+                night_low: document.getElementById('night_low').value,
+                type: 'night'
+            };
+            
+            submitData(data);
+        }
+
+        function submitData(data) {
+            fetch('/bp/submit', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('记录成功！');
+                    // 清空输入框
+                    if (data.type === 'morning') {
+                        document.getElementById('morning_high').value = '';
+                        document.getElementById('morning_low').value = '';
+                    } else {
+                        document.getElementById('night_high').value = '';
+                        document.getElementById('night_low').value = '';
+                    }
+                } else {
+                    alert('记录失败：' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('提交出错：' + error);
+            });
+        }
+
+        function submitMedicine() {
+            const data = {
+                date: document.getElementById('date').value,
+                medicinetaken: document.getElementById('medicinetaken').checked,
+                type: 'medicine'
+            };
+            
+            submitData(data);
+        }
+
+        // 设置默认日期为今天
+        document.getElementById('date').valueAsDate = new Date();
+    </script>
+</body>
+</html> 

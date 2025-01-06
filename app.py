@@ -13,6 +13,10 @@ from github_utils import push_db_updates
 from db import get_db, init_casino_db, init_meter_db
 import requests
 from urllib.parse import urljoin
+from functools import wraps
+from flask import session, jsonify
+import xlsxwriter
+from io import BytesIO
 
 # 设置东部时区
 eastern = pytz.timezone('US/Eastern')
@@ -721,6 +725,472 @@ def sync_db():
             'success': False,
             'message': '同步失败'
         })
+
+def calculate_risk_level(high, low):
+    """计算风险等级"""
+    if high > 140 or low > 90:
+        return 'high'
+    elif high > 130 or low > 85:
+        return 'medium'
+    else:
+        return 'normal'
+
+def calculate_average(record):
+    """计算平均血压"""
+    morning_high = float(record['morning_high']) if record['morning_high'] else None
+    night_high = float(record['night_high']) if record['night_high'] else None
+    morning_low = float(record['morning_low']) if record['morning_low'] else None
+    night_low = float(record['night_low']) if record['night_low'] else None
+    
+    avg_high = 0
+    avg_low = 0
+    
+    # 计算高压平均值
+    if morning_high is not None and night_high is not None:
+        avg_high = (morning_high + night_high) / 2
+    elif morning_high is not None:
+        avg_high = morning_high
+    elif night_high is not None:
+        avg_high = night_high
+    
+    # 计算低压平均值
+    if morning_low is not None and night_low is not None:
+        avg_low = (morning_low + night_low) / 2
+    elif morning_low is not None:
+        avg_low = morning_low
+    elif night_low is not None:
+        avg_low = night_low
+    
+    return avg_high, avg_low
+
+@app.route('/bp')
+@login_required
+def bp_index():
+    return render_template('bpindex.html', current_date=datetime.now().strftime('%Y-%m-%d'))
+
+@app.route('/bp/submit', methods=['POST'])
+@login_required
+def bp_submit():
+    try:
+        data = request.get_json()
+        date = data['date']
+        medicinetaken = data['medicinetaken']
+        type = data['type']
+        
+        conn = get_db('meter')
+        cursor = conn.cursor()
+        
+        try:
+            # 检查是否已存在该日期的记录
+            cursor.execute('SELECT * FROM bp_records WHERE date = ?', (date,))
+            existing_record = cursor.fetchone()
+            
+            if type == 'morning':
+                morning_high = data['morning_high']
+                morning_low = data['morning_low']
+                
+                if existing_record:
+                    # 更新现有记录的早晨数据，保持服药状态为True如果已设置
+                    cursor.execute('''UPDATE bp_records 
+                                    SET morning_high = ?, morning_low = ?, 
+                                        medicinetaken = CASE 
+                                            WHEN medicinetaken = 1 THEN 1 
+                                            ELSE ? 
+                                        END
+                                    WHERE date = ?''',
+                                 (morning_high, morning_low, medicinetaken, date))
+                else:
+                    # 创建新记录
+                    cursor.execute('''INSERT INTO bp_records 
+                                    (date, medicinetaken, morning_high, morning_low)
+                                    VALUES (?, ?, ?, ?)''',
+                                 (date, medicinetaken, morning_high, morning_low))
+            elif type == 'night':
+                night_high = data['night_high']
+                night_low = data['night_low']
+                
+                if existing_record:
+                    # 更新现有记录的晚间数据
+                    cursor.execute('''UPDATE bp_records 
+                                    SET night_high = ?, night_low = ?, medicinetaken = ?
+                                    WHERE date = ?''',
+                                 (night_high, night_low, medicinetaken, date))
+                else:
+                    # 创建新记录
+                    cursor.execute('''INSERT INTO bp_records 
+                                    (date, medicinetaken, night_high, night_low)
+                                    VALUES (?, ?, ?, ?)''',
+                                 (date, medicinetaken, night_high, night_low))
+            elif type == 'medicine':
+                if existing_record:
+                    # 仅更新服药状态
+                    cursor.execute('''UPDATE bp_records 
+                                    SET medicinetaken = ?
+                                    WHERE date = ?''',
+                                  (medicinetaken, date))
+                else:
+                    # 创建新记录，仅包含服药状态
+                    cursor.execute('''INSERT INTO bp_records 
+                                    (date, medicinetaken)
+                                    VALUES (?, ?)''',
+                                  (date, medicinetaken))
+            
+            # 获取更新后的记录以计算平均值和风险等级
+            cursor.execute('SELECT * FROM bp_records WHERE date = ?', (date,))
+            record = cursor.fetchone()
+            
+            if record:
+                record_dict = {
+                    'morning_high': record[3],
+                    'morning_low': record[4],
+                    'night_high': record[5],
+                    'night_low': record[6]
+                }
+                
+                # 计算平均值和风险等级
+                avg_high, avg_low = calculate_average(record_dict)
+                risk_level = calculate_risk_level(
+                    max(record[3] or 0, record[5] or 0),
+                    max(record[4] or 0, record[6] or 0))
+                
+                # 更新记录
+                cursor.execute('''UPDATE bp_records 
+                                SET avg_high = ?, avg_low = ?, risk_level = ?
+                                WHERE date = ?''',
+                             (avg_high, avg_low, risk_level, date))
+            
+            conn.commit()
+            
+            # 推送更新到GitHub
+            push_db_updates()
+            
+            return jsonify({'success': True, 'type': type})
+            
+        finally:
+            cursor.close()
+            conn.close()
+            
+    except Exception as e:
+        print(f"Error in bp_submit: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/bp/detail')
+@login_required
+def bp_detail():
+    page = request.args.get('page', 1, type=int)
+    per_page = 25
+    
+    conn = get_db('meter')
+    cursor = conn.cursor()
+    
+    try:
+        # 获取总记录数
+        cursor.execute('SELECT COUNT(*) FROM bp_records')
+        total_records = cursor.fetchone()[0]
+        total_pages = (total_records + per_page - 1) // per_page
+        
+        # 获取当前页的记录
+        offset = (page - 1) * per_page
+        cursor.execute('''SELECT * FROM bp_records 
+                         ORDER BY date DESC 
+                         LIMIT ? OFFSET ?''', 
+                       (per_page, offset))
+        records = cursor.fetchall()
+        
+        # 调试输出
+        print("Records:", records)
+        for record in records:
+            print(f"Record {record[0]}: {record}")
+        
+        return render_template('bpdetail.html', 
+                             records=records, 
+                             page=page, 
+                             total_pages=total_pages)
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/bp/edit/<int:id>', methods=['GET', 'POST'])
+@login_required
+def bp_edit(id):
+    conn = get_db('meter')
+    cursor = conn.cursor()
+    
+    try:
+        if request.method == 'POST':
+            date = request.form['date']
+            medicinetaken = 'medicinetaken' in request.form
+            morning_high = request.form.get('morning_high', type=int)
+            morning_low = request.form.get('morning_low', type=int)
+            night_high = request.form.get('night_high', type=int)
+            night_low = request.form.get('night_low', type=int)
+            
+            # 计算平均值和风险等级
+            record_dict = {
+                'morning_high': morning_high,
+                'morning_low': morning_low,
+                'night_high': night_high,
+                'night_low': night_low
+            }
+            avg_high, avg_low = calculate_average(record_dict)
+            risk_level = calculate_risk_level(
+                max(morning_high or 0, night_high or 0),
+                max(morning_low or 0, night_low or 0)
+            )
+            
+            # 更新记录
+            cursor.execute('''UPDATE bp_records 
+                            SET date=?, medicinetaken=?, 
+                                morning_high=?, morning_low=?,
+                                night_high=?, night_low=?,
+                                avg_high=?, avg_low=?,
+                                risk_level=?
+                            WHERE id=?''',
+                         (date, medicinetaken, morning_high, morning_low,
+                          night_high, night_low, avg_high, avg_low,
+                          risk_level, id))
+            conn.commit()
+            
+            # 推送更新到GitHub
+            push_db_updates()
+            
+            return redirect(url_for('bp_detail'))
+        
+        # GET 请求，获取记录
+        cursor.execute('SELECT * FROM bp_records WHERE id=?', (id,))
+        record = cursor.fetchone()
+        if record is None:
+            return redirect(url_for('bp_detail'))
+        
+        return render_template('bpedit.html', record=record)
+        
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/bp/remove/<int:id>')
+@login_required
+def bp_remove(id):
+    conn = get_db('meter')
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('DELETE FROM bp_records WHERE id=?', (id,))
+        conn.commit()
+        
+        # 推送更新到GitHub
+        push_db_updates()
+        
+    finally:
+        cursor.close()
+        conn.close()
+    
+    return redirect(url_for('bp_detail'))
+
+@app.route('/bp/chart')
+@login_required
+def bp_chart():
+    return render_template('bpchart.html')
+
+@app.route('/bp/chart-data')
+@login_required
+def bp_chart_data():
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    
+    conn = get_db('meter')
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('''SELECT date, 
+                                 CASE 
+                                     WHEN morning_high IS NOT NULL AND night_high IS NOT NULL 
+                                     THEN (morning_high + night_high) / 2
+                                     ELSE COALESCE(morning_high, night_high) 
+                                 END as high,
+                                 CASE 
+                                     WHEN morning_low IS NOT NULL AND night_low IS NOT NULL 
+                                     THEN (morning_low + night_low) / 2
+                                     ELSE COALESCE(morning_low, night_low)
+                                 END as low
+                           FROM bp_records 
+                           WHERE date BETWEEN ? AND ?
+                           ORDER BY date''',
+                        (start_date, end_date))
+        records = cursor.fetchall()
+        
+        dates = [record[0] for record in records]
+        high_pressures = [record[1] if record[1] else 0 for record in records]
+        low_pressures = [record[2] if record[2] else 0 for record in records]
+        
+        return jsonify({
+            'dates': dates,
+            'high_pressures': high_pressures,
+            'low_pressures': low_pressures
+        })
+        
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/bp/stats')
+@login_required
+def bp_stats():
+    # 默认显示最近一周的统计
+    stats = calculate_bp_stats('week')
+    return render_template('bpaverage.html', stats=stats)
+
+@app.route('/bp/stats-data')
+@login_required
+def bp_stats_data():
+    period = request.args.get('period', 'week')
+    stats = calculate_bp_stats(period)
+    return jsonify(stats)
+
+def calculate_bp_stats(period, start_date=None, end_date=None):
+    conn = get_db('meter')
+    cursor = conn.cursor()
+    
+    try:
+        if period != 'custom':
+            # 计算日期范围
+            today = datetime.now().date()
+            if period == 'week':
+                start_date = (today - timedelta(days=7)).isoformat()
+            elif period == 'month':
+                start_date = (today - timedelta(days=30)).isoformat()
+            else:  # year
+                start_date = (today - timedelta(days=365)).isoformat()
+            end_date = today.isoformat()
+          
+        # 获取指定时期的记录
+        cursor.execute('''SELECT * FROM bp_records 
+                         WHERE date BETWEEN ? AND ?
+                         ORDER BY date''',
+                       (start_date, end_date))
+        records = cursor.fetchall()
+        
+        if not records:
+            return {
+                'avg_high': 0,
+                'avg_low': 0,
+                'max_high': 0,
+                'max_low': 0,
+                'min_high': 0,
+                'min_low': 0,
+                'medicine_rate': 0,
+                'total_days': 0
+            }
+        
+        # 计算统计数据
+        highs = []
+        lows = []
+        medicine_taken = 0
+        
+        for record in records:
+            if record[3]:  # morning_high
+                highs.append(record[3])
+            if record[5]:  # night_high
+                highs.append(record[5])
+            if record[4]:  # morning_low
+                lows.append(record[4])
+            if record[6]:  # night_low
+                lows.append(record[6])
+            if record[2]:  # medicinetaken
+                medicine_taken += 1
+        
+        return {
+            'avg_high': sum(highs) / len(highs) if highs else 0,
+            'avg_low': sum(lows) / len(lows) if lows else 0,
+            'max_high': max(highs) if highs else 0,
+            'max_low': max(lows) if lows else 0,
+            'min_high': min(highs) if highs else 0,
+            'min_low': min(lows) if lows else 0,
+            'medicine_rate': medicine_taken / len(records) if records else 0,
+            'total_days': len(records)
+        }
+        
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/bp/export')
+@login_required
+def bp_export():
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    
+    if not start_date:
+        # 默认显示最近一个月的数据
+        end_date = datetime.now().date().isoformat()
+        start_date = (datetime.now() - timedelta(days=30)).date().isoformat()
+    
+    # 获取所有记录和统计数据
+    stats = calculate_bp_stats('custom', start_date, end_date)
+    
+    conn = get_db('meter')
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('''SELECT * FROM bp_records 
+                         WHERE date BETWEEN ? AND ?
+                         ORDER BY date DESC''',
+                       (start_date, end_date))
+        records = cursor.fetchall()
+        
+        return render_template('bpprint.html',
+                             records=records,
+                             stats=stats,
+                             current_date=datetime.now().strftime('%Y-%m-%d'))
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/bp/export-excel')
+@login_required
+def bp_export_excel():
+    # 创建一个内存中的Excel文件
+    output = BytesIO()
+    workbook = xlsxwriter.Workbook(output)
+    worksheet = workbook.add_worksheet()
+    
+    # 添加标题行
+    headers = ['日期', '服药情况', '早晨血压', '晚间血压', '平均值', '风险等级']
+    for col, header in enumerate(headers):
+        worksheet.write(0, col, header)
+    
+    # 获取数据
+    conn = get_db('meter')
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('SELECT * FROM bp_records ORDER BY date DESC')
+        records = cursor.fetchall()
+        
+        # 写入数据
+        for row, record in enumerate(records, 1):
+            worksheet.write(row, 0, record[1])  # 日期
+            worksheet.write(row, 1, "已服药" if record[2] else "未服药")  # 服药情况
+            worksheet.write(row, 2, f"{record[3]}/{record[4]}" if record[3] else "--")  # 早晨血压
+            worksheet.write(row, 3, f"{record[5]}/{record[6]}" if record[5] else "--")  # 晚间血压
+            worksheet.write(row, 4, f"{record[7]}/{record[8]}" if record[7] else "--")  # 平均值
+            risk_level = "正常" if record[9] == "normal" else "中等风险" if record[9] == "medium" else "高风险"
+            worksheet.write(row, 5, risk_level)  # 风险等级
+        
+        workbook.close()
+        
+        # 设置响应头
+        output.seek(0)
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=f'blood_pressure_records_{datetime.now().strftime("%Y%m%d")}.xlsx'
+        )
+        
+    finally:
+        cursor.close()
+        conn.close()
 
 if __name__ == '__main__':
     init_db()
