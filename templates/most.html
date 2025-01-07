@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>用电量统计</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        body {
+            background: url("{{ url_for('static', filename='chinese-dragon.png') }}") no-repeat center center fixed;
+            background-size: cover;
+            background-color: rgba(255, 255, 255, 0.9);
+            background-blend-mode: overlay;
+        }
+        .container {
+            width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: rgba(248, 249, 250, 0.95);
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        }
+        .date-range {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .header-section {
+            background-color: #e3f2fd;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .date-range form {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        .form-control {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px 12px;
+            transition: all 0.3s;
+        }
+        .form-control:focus {
+            border-color: #4a90e2;
+            box-shadow: 0 0 0 2px rgba(74,144,226,0.2);
+        }
+        .table-section {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .highest-usage {
+            background: linear-gradient(135deg, #fff8f8, #fff0f0);
+        }
+        .lowest-usage {
+            background: linear-gradient(135deg, #f8fff8, #f0fff0);
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: white;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+        }
+        .btn-secondary {
+            background: linear-gradient(135deg, #17a2b8, #138496);
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        th {
+            background: linear-gradient(135deg, #4a90e2, #357abd);
+            color: white;
+            padding: 12px;
+            text-transform: uppercase;
+            font-size: 0.9em;
+            letter-spacing: 1px;
+        }
+        td {
+            padding: 12px;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+        tr:hover {
+            background-color: rgba(74, 144, 226, 0.05);
+            transform: translateX(5px);
+        }
+        .result-summary {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .stat-card h4 {
+            color: #2c3e50;
+            font-size: 1em;
+            margin-bottom: 10px;
+        }
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: 500;
+            color: #4a90e2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-section">
+            <h2>用电量统计</h2>
+        </div>
+        <div class="date-range">
+            <form method="post" class="form-inline">
+                <div class="row w-100">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label class="w-100">开始日期</label>
+                            <input type="date" name="start_date" class="form-control w-100" value="{{ start_date }}" required>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label class="w-100">结束日期</label>
+                            <input type="date" name="end_date" class="form-control w-100" value="{{ end_date }}" required>
+                        </div>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search mr-2"></i>查询统计
+                        </button>
+                    </div>
+                </div>
+            </form>
+            {% if show_results %}
+            <div class="result-summary mt-4">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="stat-card">
+                            <h4>平均用电量</h4>
+                            <div class="stat-value">{{ '%.2f'|format(avg_usage) if avg_usage else '0.00' }} kWh</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="stat-card">
+                            <h4>总用电量</h4>
+                            <div class="stat-value">{{ '%.2f'|format(total_usage) if total_usage else '0.00' }} kWh</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="table-section highest-usage">
+            <h2>最高用电量记录</h2>
+            <table>
+                <tr>
+                    <th>日期</th>
+                    <th>电表读数</th>
+                    <th>用电量</th>
+                    <th>备注</th>
+                </tr>
+                {% for record in highest %}
+                <tr>
+                    <td>{{ record[1] }}</td>
+                    <td>{{ record[2] }}</td>
+                    <td>{{ record[3] }}</td>
+                    <td>{{ record[4] }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+
+        <div class="table-section lowest-usage">
+            <h2>最低用电量记录</h2>
+            <table>
+                <tr>
+                    <th>日期</th>
+                    <th>电表读数</th>
+                    <th>用电量</th>
+                    <th>备注</th>
+                </tr>
+                {% for record in lowest %}
+                <tr>
+                    <td>{{ record[1] }}</td>
+                    <td>{{ record[2] }}</td>
+                    <td>{{ record[3] }}</td>
+                    <td>{{ record[4] }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+
+        <div class="text-center">
+            <a href="{{ url_for('electricity_detail') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left mr-2"></i>返回详情页
+            </a>
+        </div>
+    </div>
+</body>
+</html> 

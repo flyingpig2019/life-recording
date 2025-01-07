@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>电表读数详情</title>
+    <style>
+        body {
+            background: url('/static/chinese-dragon.png') no-repeat center center fixed;
+            background-size: cover;
+            background-color: rgba(255, 255, 255, 0.9);
+            background-blend-mode: overlay;
+        }
+        .container {
+            width: 1000px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: rgba(248, 249, 250, 0.95);
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        }
+        .header-section {
+            background-color: #e3f2fd;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 8px 15px;
+            background-color: #17a2b8;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #138496;
+        }
+        .function-button {
+            background-color: #4CAF50;
+        }
+        .function-button:hover {
+            background-color: #45a049;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            border: none;
+        }
+        th, td {
+            border: none;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            padding: 12px;
+            text-align: left;
+            transition: all 0.3s ease;
+        }
+        th {
+            background: linear-gradient(135deg, #4a90e2, #357abd);
+            color: white;
+            font-weight: 500;
+            text-transform: uppercase;
+            font-size: 0.9em;
+            letter-spacing: 1px;
+        }
+        tr:nth-child(even) {
+            background-color: rgba(74, 144, 226, 0.02);
+        }
+        tr:hover {
+            background-color: rgba(74, 144, 226, 0.05);
+            transform: translateX(5px);
+        }
+        td {
+            font-size: 0.95em;
+            color: #444;
+        }
+        .action-button {
+            background: linear-gradient(135deg, #6c757d, #5a6268);
+            border: none;
+            padding: 8px 15px;
+            color: white;
+            border-radius: 20px;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+        }
+        .action-button:hover {
+            background: linear-gradient(135deg, #5a6268, #6c757d);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .dropdown::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 100%;
+            width: 20px;
+            height: 100%;
+        }
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: white;
+            min-width: 120px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            z-index: 1;
+            border-radius: 8px;
+            overflow: hidden;
+            transform: translateY(5px);
+            transition: all 0.3s ease;
+            right: 100%;
+            top: 0;
+            margin-right: 20px;
+            padding: 5px 0;
+        }
+        .dropdown-content a {
+            display: block;
+            color: #333;
+            text-decoration: none;
+            padding: 12px 20px;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+        }
+        .dropdown-content a:hover {
+            background-color: #f8f9fa;
+            padding-left: 25px;
+        }
+        .dropdown:hover .dropdown-content {
+            display: block;
+        }
+        .action-button {
+            background-color: #6c757d;
+            width: 80px;
+        }
+        .action-button:hover {
+            background-color: #5a6268;
+        }
+        h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+        }
+        .usage-cell {
+            font-weight: 500;
+        }
+        .usage-high {
+            background-color: #e6d8ff !important;  /* 紫色背景 */
+            color: #6200ea;
+        }
+        .usage-warning {
+            background-color: #ffe8e8 !important;  /* 红色背景 */
+            color: #d32f2f;
+        }
+        .usage-good {
+            background-color: #e8f5e9 !important;  /* 绿色背景 */
+            color: #2e7d32;
+        }
+        .positive-amount {
+            color: #28a745;
+        }
+        .negative-amount {
+            color: #dc3545;
+        }
+        .pagination {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 10px;
+            gap: 5px;
+        }
+        .pagination a {
+            padding: 5px 10px;
+            background-color: #f1f1f1;
+            color: #333;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        .pagination a:hover {
+            background-color: #ddd;
+        }
+        .pagination a.active {
+            background-color: #4a90e2;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-section">
+            <h2>电表读数详情</h2>
+            <div class="button-group">
+                <a href="/electricity"><button>返回主页</button></a>
+                <a href="/electricity/chart"><button class="function-button">查看图表</button></a>
+                <a href="/electricity/most"><button class="function-button">用电统计</button></a>
+                <a href="/electricity/coned"><button class="function-button">电费统计</button></a>
+            </div>
+        </div>
+
+        <table>
+            <tr>
+                <th>ID</th>
+                <th>日期</th>
+                <th>电表读数</th>
+                <th>用电量</th>
+                <th>电费金额</th>
+                <th>备注</th>
+                <th>操作</th>
+            </tr>
+            {% for record in records %}
+            <tr>
+                <td>{{ record[0] }}</td>
+                <td>{{ record[1] }}</td>
+                <td>{{ record[2] }}</td>
+                <td class="usage-cell 
+                    {% if record[3]|float > 100 %}usage-high
+                    {% elif record[3]|float > 90 %}usage-warning
+                    {% elif record[3]|float > 0 and record[3]|float < 40 %}usage-good
+                    {% endif %}">
+                    {{ record[3] }}
+                </td>
+                <td class="{% if record[5]|float > 0 %}positive-amount{% else %}negative-amount{% endif %}">
+                    {{ record[5] }}
+                </td>
+                <td>{{ record[4] }}</td>
+                <td>
+                    <div class="dropdown">
+                        <button class="action-button">操作 ▼</button>
+                        <div class="dropdown-content">
+                            <a href="{{ url_for('electricity_edit', id=record[0]) }}">编辑</a>
+                            <a href="{{ url_for('electricity_remove', id=record[0]) }}" 
+                               onclick="return confirm('确定要删除这条记录吗？');">删除</a>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+
+        <div class="pagination">
+            {% if page > 1 %}
+            <a href="{{ url_for('electricity_detail', page=page-1) }}">&laquo; 上一页</a>
+            {% endif %}
+            {% for p in range(1, total_pages + 1) %}
+            <a href="{{ url_for('electricity_detail', page=p) }}" class="{% if p == page %}active{% endif %}">{{ p }}</a>
+            {% endfor %}
+            {% if page < total_pages %}
+            <a href="{{ url_for('electricity_detail', page=page+1) }}">下一页 &raquo;</a>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html> 

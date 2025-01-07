@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>用电量图表分析</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        body {
+            background: url("{{ url_for('static', filename='chinese-dragon.png') }}") no-repeat center center fixed;
+            background-size: cover;
+            background-color: rgba(255, 255, 255, 0.9);
+            background-blend-mode: overlay;
+        }
+        .container {
+            width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: rgba(248, 249, 250, 0.95);
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        }
+        .header-section {
+            background-color: #e3f2fd;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .chart-controls {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        .chart-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        .form-control {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px 12px;
+            transition: all 0.3s;
+        }
+        .form-control:focus {
+            border-color: #4a90e2;
+            box-shadow: 0 0 0 2px rgba(74,144,226,0.2);
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+        }
+        .btn-secondary {
+            background: linear-gradient(135deg, #17a2b8, #138496);
+            color: white;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-section">
+            <h2>用电量图表分析</h2>
+        </div>
+        <div class="chart-controls">
+            <form id="chartForm" class="form-inline">
+                <div class="row w-100">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label class="w-100">开始日期</label>
+                            <input type="date" class="form-control w-100" id="start_date" required>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label class="w-100">结束日期</label>
+                            <input type="date" class="form-control w-100" id="end_date" required>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label class="w-100">图表类型</label>
+                            <select class="form-control w-100" id="chart_type">
+                                <option value="line">折线图</option>
+                                <option value="bar">柱状图</option>
+                                <option value="pie">饼图</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row w-100 mt-3">
+                    <div class="col-12 text-center">
+                        <button type="button" onclick="generateChart()" class="btn btn-primary">
+                            <i class="fas fa-chart-line mr-2"></i>生成图表
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="chart-container">
+            <canvas id="myChart"></canvas>
+        </div>
+        <div class="text-center">
+            <a href="{{ url_for('electricity_detail') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left mr-2"></i>返回详情页
+            </a>
+        </div>
+    </div>
+
+    <script>
+        let myChart = null;
+
+        function generateChart() {
+            const startDate = document.getElementById('start_date').value;
+            const endDate = document.getElementById('end_date').value;
+            const chartType = document.getElementById('chart_type').value;
+
+            fetch('/electricity/chart-data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `start_date=${startDate}&end_date=${endDate}&chart_type=${chartType}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (myChart) {
+                    myChart.destroy();
+                }
+
+                const ctx = document.getElementById('myChart').getContext('2d');
+                let datasets = [];
+
+                if (chartType === 'bar') {
+                    // 计算特斯拉充电量和其他用电量
+                    const teslaUsage = data.meters.map((usage, i) => 
+                        data.conedtesla[i] ? data.conedtesla[i] * 10 : 0
+                    );
+                    const otherUsage = data.meters.map((usage, i) => 
+                        Math.max(0, usage - (data.conedtesla[i] ? data.conedtesla[i] * 10 : 0))
+                    );
+
+                    datasets = [
+                        {
+                            label: '特斯拉充电',
+                            data: teslaUsage,
+                            backgroundColor: 'rgba(231, 76, 60, 0.7)',
+                            borderColor: 'rgba(231, 76, 60, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: '其他用电',
+                            data: otherUsage,
+                            backgroundColor: 'rgba(52, 152, 219, 0.7)',
+                            borderColor: 'rgba(52, 152, 219, 1)',
+                            borderWidth: 1
+                        }
+                    ];
+                } else if (chartType === 'pie') {
+                    // 计算总的特斯拉充电量和其他用电量
+                    const totalTeslaUsage = data.meters.reduce((sum, usage, i) => 
+                        sum + (data.conedtesla[i] ? data.conedtesla[i] * 10 : 0), 0
+                    );
+                    const totalOtherUsage = data.meters.reduce((sum, usage, i) => 
+                        sum + Math.max(0, usage - (data.conedtesla[i] ? data.conedtesla[i] * 10 : 0)), 0
+                    );
+                    
+                    datasets = [{
+                        data: [totalTeslaUsage, totalOtherUsage],
+                        backgroundColor: [
+                            'rgba(231, 76, 60, 0.7)',  // 特斯拉充电 - 红色
+                            'rgba(52, 152, 219, 0.7)'  // 其他用电 - 蓝色
+                        ],
+                        borderColor: [
+                            'rgba(231, 76, 60, 1)',
+                            'rgba(52, 152, 219, 1)'
+                        ],
+                        borderWidth: 1
+                    }];
+                } else {
+                    datasets = [{
+                        label: '用电量差值',
+                        data: data.meters,
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }];
+                }
+
+                const config = {
+                    type: chartType === 'pie' ? 'pie' : chartType,
+                    data: {
+                        labels: chartType === 'pie' ? 
+                            ['特斯拉充电', '其他用电'] : 
+                            data.dates,
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const value = context.raw;
+                                        return `${context.label}: ${value.toFixed(1)} 度`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: chartType !== 'pie' ? {
+                            x: {
+                                stacked: chartType === 'bar'
+                            },
+                            y: {
+                                stacked: chartType === 'bar',
+                                beginAtZero: true
+                            }
+                        } : undefined
+                    }
+                };
+
+                myChart = new Chart(ctx, config);
+            });
+        }
+
+        // 设置默认日期
+        document.getElementById('start_date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('end_date').value = new Date().toISOString().split('T')[0];
+    </script>
+</body>
+</html> 

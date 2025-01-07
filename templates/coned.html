@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>电费统计</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        body {
+            background: url("{{ url_for('static', filename='chinese-dragon.png') }}") no-repeat center center fixed;
+            background-size: cover;
+            background-color: rgba(255, 255, 255, 0.9);
+            background-blend-mode: overlay;
+        }
+        .container {
+            width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: rgba(248, 249, 250, 0.95);
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        }
+        .header-section {
+            background-color: #e3f2fd;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .form-group {
+            margin-bottom: 15px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .form-control {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px 12px;
+            transition: all 0.3s;
+        }
+        .form-control:focus {
+            border-color: #4a90e2;
+            box-shadow: 0 0 0 2px rgba(74,144,226,0.2);
+        }
+        .result-container {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            padding: 25px;
+            border-radius: 8px;
+            margin-top: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .stat-value {
+            font-size: 2em;
+            font-weight: 500;
+            color: #e74c3c;
+            margin: 15px 0;
+        }
+        .stat-unit {
+            font-size: 0.5em;
+            color: #666;
+            margin-left: 5px;
+        }
+        .tesla-value {
+            color: #4a90e2;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: white;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+        }
+        .btn-secondary {
+            background: linear-gradient(135deg, #17a2b8, #138496);
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-section">
+            <h2>电费统计</h2>
+        </div>
+        <div class="form-group">
+            <form method="post" class="form-inline">
+                <div class="row w-100">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label class="w-100">开始日期</label>
+                            <input type="date" name="start_date" class="form-control w-100" value="{{ start_date }}" required>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label class="w-100">结束日期</label>
+                            <input type="date" name="end_date" class="form-control w-100" value="{{ end_date }}" required>
+                        </div>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-calculator mr-2"></i>计算电费
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        {% if show_results %}
+        <div class="result-container">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>电费支出</h3>
+                    <div class="stat-value">
+                        ¥ {{ '%.2f'|format(total) if total else '0.00' }}
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <h3>特斯拉充电</h3>
+                    <div class="stat-value tesla-value">
+                        {{ '%.1f'|format(total * 10 if total else 0) }}
+                        <span class="stat-unit">度</span>
+                    </div>
+                </div>
+            </div>
+            <div class="text-center mt-3 text-muted">
+                <small>统计期间：{{ start_date }} 至 {{ end_date }}</small>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="text-center mt-4">
+            <a href="{{ url_for('electricity_detail') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left mr-2"></i>返回详情页
+            </a>
+        </div>
+    </div>
+</body>
+</html> 
