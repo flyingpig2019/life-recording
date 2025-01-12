@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>血压记录详情</title>
+    <style>
+        body {
+            background: url('/static/chinese-dragon.png') no-repeat center center fixed;
+            background-size: cover;
+            background-color: rgba(255, 255, 255, 0.9);
+            background-blend-mode: overlay;
+        }
+        .container {
+            width: 1000px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: rgba(248, 249, 250, 0.95);
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        }
+        .header-section {
+            background-color: #e3f2fd;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 8px 15px;
+            background-color: #17a2b8;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #138496;
+        }
+        .function-button {
+            background-color: #4CAF50;
+        }
+        .function-button:hover {
+            background-color: #45a049;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+        th {
+            background: linear-gradient(135deg, #4a90e2, #357abd);
+            color: white;
+            font-weight: 500;
+            text-transform: uppercase;
+            font-size: 0.9em;
+            letter-spacing: 1px;
+        }
+        tr:hover {
+            background-color: rgba(74, 144, 226, 0.05);
+            transform: translateX(5px);
+            transition: all 0.3s ease;
+        }
+        .risk-normal {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+        .risk-medium {
+            background-color: #fff3e0;
+            color: #f57c00;
+        }
+        .risk-high {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        .medicine-taken {
+            color: #4CAF50;
+        }
+        .medicine-not-taken {
+            color: #f44336;
+        }
+        .action-button {
+            padding: 6px 12px;
+            border: none;
+            color: white;
+            border-radius: 4px;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+            margin: 0 2px;
+        }
+        .edit-button {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+        }
+        .delete-button {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+        }
+        .action-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .pagination {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 10px;
+            gap: 5px;
+        }
+        .pagination a {
+            padding: 5px 10px;
+            background-color: #f1f1f1;
+            color: #333;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        .pagination a:hover {
+            background-color: #ddd;
+        }
+        .pagination a.active {
+            background-color: #4a90e2;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-section">
+            <h2>血压记录详情</h2>
+            <div class="button-group">
+                <a href="/bp"><button>返回记录页</button></a>
+                <a href="/bp/chart"><button class="function-button">查看图表</button></a>
+                <a href="/bp/stats"><button class="function-button">平均统计</button></a>
+                <a href="/bp/export"><button class="function-button">下载打印</button></a>
+            </div>
+        </div>
+
+        <table>
+            <tr>
+                <th>日期</th>
+                <th>服药情况</th>
+                <th>早晨血压</th>
+                <th>晚间血压</th>
+                <th>平均值</th>
+                <th>风险等级</th>
+                <th>操作</th>
+            </tr>
+            {% for record in records %}
+            <tr>
+                <td>{{ record[1] }}</td>
+                <td class="{% if record[2] %}medicine-taken{% else %}medicine-not-taken{% endif %}">
+                    {{ "已服药" if record[2] else "未服药" }}
+                </td>
+                <td>{{ record[3] }}/{{ record[4] if record[4] else "--" }}</td>
+                <td>{{ record[5] }}/{{ record[6] if record[6] else "--" }}</td>
+                <td>
+                    {% if record[7] != 0 or record[8] != 0 %}
+                        {{ "%.0f/%.0f"|format(record[7], record[8]) }}
+                    {% else %}
+                        --
+                    {% endif %}
+                </td>
+                <td class="risk-{{ record[9]|default('normal') }}">
+                    {{ "正常" if record[9] == "normal" else "中等风险" if record[9] == "medium" else "高风险" if record[9] == "high" else "正常" }}
+                </td>
+                <td>
+                    <a href="/bp/edit/{{ record[0] }}" class="action-button edit-button">编辑</a>
+                    <a href="/bp/remove/{{ record[0] }}" 
+                       onclick="return confirm('确定要删除这条记录吗？')" 
+                       class="action-button delete-button">删除</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+
+        <div class="pagination">
+            {% if page > 1 %}
+            <a href="{{ url_for('bp_detail', page=page-1) }}">&laquo; 上一页</a>
+            {% endif %}
+            {% for p in range(1, total_pages + 1) %}
+            <a href="{{ url_for('bp_detail', page=p) }}" 
+               class="{% if p == page %}active{% endif %}">{{ p }}</a>
+            {% endfor %}
+            {% if page < total_pages %}
+            <a href="{{ url_for('bp_detail', page=page+1) }}">下一页 &raquo;</a>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html> 
