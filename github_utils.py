@@ -146,7 +146,7 @@ def push_db_updates():
                 contents = repo.get_contents('meter.db')
                 # 合并更新
                 merge_db_updates('meter.db', contents.decoded_content, 
-                               ['meter_records', 'bp_records'])
+                               ['meter_records'])
                 
                 with open('meter.db', 'rb') as file:
                     content = file.read()
